@@ -913,6 +913,19 @@ def main():
     print(f"  Domain fertility:")
     for domain, data in report.get("domain_fertility", {}).items():
         print(f"    {domain:<20} {data['avg_fertility']:.3f}")
+    
+    print(f"\n  Tokenization Samples:")
+    # We use some common words to see how they are split
+    debug_words = ["தமிழ்", "வீடுகளிலிருந்து", "கணினி", "அம்மா", "123456"]
+    for word in debug_words:
+        # Use our wrapper to get human-readable tokens
+        tokens = tokenizer.encode_tokens(word)
+        print(f"    {word:<20} -> {tokens}")
+
+    if report['tamil_coverage']['uncovered_count'] > 0:
+        print(f"\n  Top Uncovered Syllables:")
+        for item in report['tamil_coverage']['uncovered_samples'][:10]:
+            print(f"    {item['syllable']}: {item['tokenized_as']}")
     print(f"{'='*60}")
     print(f"  OVERALL: {target_results['overall']}")
     print(f"{'='*60}")

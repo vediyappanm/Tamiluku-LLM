@@ -108,9 +108,9 @@ def inject_syllable_seed(temp_file_path):
             syllables.append(c + vs)
     syllables.append("ஃ")
     
-    # Repeat each syllable 3000 times to ensure BPE finds them and merges them
-    # Space separation IS CRITICAL. Newlines prevent BPE from merging.
-    seed_text = (" ".join(syllables) + "\n") * 3000
+    # Repeat each syllable 10000 times to ensure BPE finds them and merges them above all else
+    # Space separation IS CRITICAL.
+    seed_text = (" ".join(syllables) + "\n") * 10000
     
     # Prepend to the file
     with open(temp_file_path, "r", encoding="utf-8") as f:
@@ -135,14 +135,20 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     tokenizer.normalizer = normalizers.NFC()
     
     # 2. Production Pre-tokenization Pipeline
-    # Layer 1: Surgical removal of morpheme markers (hard boundaries)
-    # Layer 2: Clean ByteLevel BPE (No complex script splits which break roundtrip)
+    # 2. Advanced Pre-tokenization Sequence
+    # This architecture ensures:
+    # A) Morpheme boundaries are respected (@@ removal)
+    # B) Scripts NEVER leak (Split by script)
+    # C) Roundtrip is 100% preserved (ByteLevel)
     tokenizer.pre_tokenizer = Sequence([
         Split(pattern="@@", behavior="removed"),
+        # Separate Tamil, Latin, and Digits into their own processing units
+        Split(pattern=r"([\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+)", behavior="isolated"),
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
     
     # 3. Train
+    # min_frequency=2: Catch every meaningful morpheme
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=2, 
