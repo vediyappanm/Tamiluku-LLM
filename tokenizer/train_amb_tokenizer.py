@@ -290,6 +290,11 @@ def main():
         
     corpus_path = Path(args.corpus) if args.corpus else Path(cfg["corpus"]["output_file"])
     
+    # Kaggle Fallback: If not found, check parent dir (handles common subfolder execution error)
+    if not corpus_path.exists() and (Path("..") / corpus_path).exists():
+        corpus_path = Path("..") / corpus_path
+        log.info(f"Using parent directory fallback for corpus: {corpus_path}")
+
     if not corpus_path.exists():
         log.error(f"Corpus not found: {corpus_path}")
         return
