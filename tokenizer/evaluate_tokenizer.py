@@ -779,14 +779,13 @@ def load_eval_texts(eval_dir: str) -> List[str]:
     texts = []
     eval_path = Path(eval_dir)
     if not eval_path.exists():
-        log.warning(f"Eval directory not found: {eval_dir}")
-        return texts
-
-    for txt_file in sorted(eval_path.glob("*.txt")):
-        with open(txt_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            docs = [d.strip() for d in content.split("\n\n") if d.strip()]
-            texts.extend(docs)
+        log.info(f"Eval directory not found: {eval_dir}. Using internal domain evaluation sentences only.")
+    else:
+        for txt_file in sorted(eval_path.glob("*.txt")):
+            with open(txt_file, "r", encoding="utf-8") as f:
+                content = f.read()
+                docs = [d.strip() for d in content.split("\n\n") if d.strip()]
+                texts.extend(docs)
 
     # Add built-in domain eval sentences
     for sentences in DOMAIN_EVAL_SENTENCES.values():
@@ -887,7 +886,7 @@ def main():
 
     texts = load_eval_texts(eval_dir)
     if not texts:
-        log.error("No evaluation texts found.")
+        log.error("No evaluation texts found (neither files nor internal domains).")
         sys.exit(1)
 
     # Run evaluation
