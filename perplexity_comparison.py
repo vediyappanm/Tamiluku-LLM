@@ -233,14 +233,18 @@ def train_and_eval_mlm(
     valid_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
     training_args = TrainingArguments(**valid_kwargs)
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        data_collator=data_collator,
-        tokenizer=tokenizer,
-    )
+    trainer_kwargs = {
+        "model": model,
+        "args": training_args,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+        "data_collator": data_collator,
+        "tokenizer": tokenizer,
+    }
+    # Dynamically filter valid kwargs for Trainer
+    trainer_sig = inspect.signature(Trainer.__init__)
+    valid_trainer_kwargs = {k: v for k, v in trainer_kwargs.items() if k in trainer_sig.parameters}
+    trainer = Trainer(**valid_trainer_kwargs)
 
     start = time.time()
     trainer.train()
