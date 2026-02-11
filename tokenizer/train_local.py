@@ -90,6 +90,36 @@ def stream_and_segment(corpus_path, temp_file_path, limit_mb):
     del norm, mseg
     gc.collect()
 
+def inject_syllable_seed(temp_file_path):
+    """
+    Guarantees 100% syllable coverage by injecting a synthetic corpus
+    of all 247 Tamil syllables repeated many times.
+    """
+    log.info("--- Phase 1.5: Injecting Syllable Seed (Coverage Booster) ---")
+    vowels = list("அஆஇஈஉஊஎஏஐஒஓஔ")
+    consonants = list("கஙசஞடணதநபமயரலவழளறன")
+    vowel_signs = ["", "ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ"]
+    
+    syllables = []
+    syllables.extend(vowels)
+    for c in consonants:
+        syllables.append(c + "்")
+        for vs in vowel_signs:
+            syllables.append(c + vs)
+    syllables.append("ஃ")
+    
+    # Repeat each syllable 20 times to ensure they meet min_frequency=10
+    seed_text = (" ".join(syllables) + "\n") * 20
+    
+    # Prepend to the file
+    with open(temp_file_path, "r", encoding="utf-8") as f:
+        existing_data = f.read()
+    with open(temp_file_path, "w", encoding="utf-8") as f:
+        f.write(seed_text)
+        f.write(existing_data)
+    
+    log.info(f"Injected {len(syllables)} unique syllables into seed.")
+
 def train_tokenizer(corpus_file, output_dir, vocab_size):
     """
     Trains BPE using the file on disk (Native Training).
@@ -103,12 +133,15 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC()
     
-    ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
+    # Strict Script Isolation: Prevents merges between Tamil, Latin, and Digits.
+    # We also split on whitespace but keep it (isolated behavior) so ByteLevel can 
+    # process it without allowing cross-script merges.
+    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
     
     tokenizer.pre_tokenizer = Sequence([
         Split(pattern=" @@ ", behavior="isolated"),
-        Split(pattern=ISOLATOR, behavior="isolated"),
-        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
+        Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
+        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True), # use_regex=True is better for stability
     ])
     
     # 2. Train
@@ -145,6 +178,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--output-dir", default="tokenizer/models/amb_tokenizer")
+    parser.add_argument("--max-mb", type=int, default=0, help="Override auto-detected RAM limit (MB)")
+    parser.add_argument("--vocab-size", type=int, default=0, help="Override auto-detected vocab size")
     args = parser.parse_args()
     
     corpus_path = Path(args.corpus)
@@ -152,13 +187,19 @@ def main():
         log.error("Corpus not found!")
         sys.exit(1)
         
-    # 1. Auto-Size
-    max_mb, vocab_size = get_safe_config()
-    log.info(f"Auto-Config: Dataset Limit={max_mb} MB | Vocab={vocab_size}")
+    # 1. Auto-Size or Manual Override
+    auto_max_mb, auto_vocab_size = get_safe_config()
+    max_mb = args.max_mb if args.max_mb > 0 else auto_max_mb
+    vocab_size = args.vocab_size if args.vocab_size > 0 else auto_vocab_size
+    
+    log.info(f"Configuration: Dataset Limit={max_mb} MB | Vocab={vocab_size}")
     
     # 2. Stream & Segment
     temp_file = Path("training_data.tmp")
     stream_and_segment(corpus_path, temp_file, max_mb)
+    
+    # 2.5 Inject Syllable Seed (Ensures 100% coverage)
+    inject_syllable_seed(temp_file)
     
     # 3. Train
     train_tokenizer(temp_file, Path(args.output_dir), vocab_size)

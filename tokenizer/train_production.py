@@ -129,15 +129,15 @@ def train_model(corpus_path, output_dir, vocab_size, model_name, is_amb):
 
     if is_amb:
         # AMB: Respects @@ boundaries and Scripts
-        ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
+        SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
         tok.pre_tokenizer = Sequence([
             Split(pattern=" @@ ", behavior="isolated"),
-            Split(pattern=ISOLATOR, behavior="isolated"),
-            pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
+            Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
+            pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
         ])
     else:
         # Baseline: Pure ByteLevel (GPT-2 style)
-        tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False)
+        tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True)
 
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
