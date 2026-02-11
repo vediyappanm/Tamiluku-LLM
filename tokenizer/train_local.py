@@ -108,8 +108,8 @@ def inject_syllable_seed(temp_file_path):
             syllables.append(c + vs)
     syllables.append("ஃ")
     
-    # Repeat each syllable 20 times to ensure they meet min_frequency=10
-    seed_text = (" ".join(syllables) + "\n") * 20
+    # Repeat each syllable 100 times to ensure they meet min_frequency and are prioritized
+    seed_text = (" ".join(syllables) + "\n") * 100
     
     # Prepend to the file
     with open(temp_file_path, "r", encoding="utf-8") as f:
@@ -134,21 +134,20 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     tokenizer.normalizer = normalizers.NFC()
     
     # Strict Script Isolation: Prevents merges between Tamil, Latin, and Digits.
-    # We also split on whitespace but keep it (isolated behavior) so ByteLevel can 
-    # process it without allowing cross-script merges.
-    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
+    # We use a more atomic pattern to ensure scripts are never mixed.
+    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]"
     
     tokenizer.pre_tokenizer = Sequence([
         Split(pattern=" @@ ", behavior="isolated"),
         Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
-        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True), # use_regex=True is better for stability
+        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
     
     # 2. Train
-    # min_frequency=10 is CRITICAL for stability on large datasets
+    # min_frequency=2 is CRITICAL for capturing agglutinative morphology in smaller corpora
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
-        min_frequency=10, 
+        min_frequency=2, 
         show_progress=True,
         special_tokens=["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"],
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet()
