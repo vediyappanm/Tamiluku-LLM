@@ -108,8 +108,9 @@ def inject_syllable_seed(temp_file_path):
             syllables.append(c + vs)
     syllables.append("ஃ")
     
-    # Repeat each syllable 100 times to ensure they meet min_frequency and are prioritized
-    seed_text = (" ".join(syllables) + "\n") * 100
+    # Repeat each syllable 5000 times to ensure they are the absolute highest frequency items
+    # This guarantees they are merged before almost anything else.
+    seed_text = (" ".join(syllables) + "\n") * 5000
     
     # Prepend to the file
     with open(temp_file_path, "r", encoding="utf-8") as f:
@@ -129,25 +130,27 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     from tokenizers import Tokenizer, models, trainers, pre_tokenizers, normalizers, decoders
     from tokenizers.pre_tokenizers import Split, Sequence
     
-    # 1. Configure
+    # 1. Config
     tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC()
     
-    # Strict Script Isolation: Prevents merges between Tamil, Latin, and Digits.
-    # We use a more atomic pattern to ensure scripts are never mixed.
-    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]"
-    
+    # 2. Advanced Pre-tokenization Sequence
+    # This is the "Secret Sauce" for Production Tamil tokenization.
+    # It hard-separates scripts and word boundaries so BPE merges only linguistically valid pairs.
     tokenizer.pre_tokenizer = Sequence([
-        Split(pattern=" @@ ", behavior="isolated"),
-        Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
+        pre_tokenizers.Whitespace(),
+        Split(pattern=" @@ ", behavior="removed"), # Clean up morpheme markers
+        Split(pattern=r"([\u0B80-\u0BFF]+)", behavior="isolated"), # Tamil Script
+        Split(pattern=r"([a-zA-Z]+)", behavior="isolated"),          # Latin Script
+        Split(pattern=r"([0-9]+)", behavior="isolated"),             # Digits
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
     
-    # 2. Train
-    # min_frequency=2 is CRITICAL for capturing agglutinative morphology in smaller corpora
+    # 3. Train
+    # min_frequency=5: High enough to ignore noise, low enough to catch morphology.
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
-        min_frequency=2, 
+        min_frequency=5, 
         show_progress=True,
         special_tokens=["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"],
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet()
