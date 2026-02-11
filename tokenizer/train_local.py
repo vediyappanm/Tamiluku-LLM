@@ -75,8 +75,8 @@ def stream_and_segment(corpus_path, temp_file_path, limit_mb):
             # Processing
             clean = norm.normalize(line)
             words = clean.split()
-            # Fast segmentation
-            seg_words = [mseg.segment_word(w).replace(" ", " @@ ") for w in words]
+            # Fast segmentation: "வீடு கள்" -> "வீடு@@கள்"
+            seg_words = [mseg.segment_word(w).replace(" ", "@@") for w in words]
             
             out_line = " ".join(seg_words) + "\n"
             f_out.write(out_line)
@@ -108,9 +108,9 @@ def inject_syllable_seed(temp_file_path):
             syllables.append(c + vs)
     syllables.append("ஃ")
     
-    # Repeat each syllable 5000 times to ensure they are the absolute highest frequency items
-    # This guarantees they are merged before almost anything else.
-    seed_text = (" ".join(syllables) + "\n") * 5000
+    # Repeat each syllable 2000 times on separate lines to ensure 100% coverage
+    # "\n" ensures 2 characters in different syllables aren't accidentally merged.
+    seed_text = ("\n".join(syllables) + "\n") * 2000
     
     # Prepend to the file
     with open(temp_file_path, "r", encoding="utf-8") as f:
@@ -134,23 +134,23 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC()
     
-    # 2. Advanced Pre-tokenization Sequence
-    # This is the "Secret Sauce" for Production Tamil tokenization.
-    # It hard-separates scripts and word boundaries so BPE merges only linguistically valid pairs.
+    # 2. Production Pre-tokenization Pipeline
+    # LAYER A: Remove synthetic morpheme markers (hard boundaries)
+    # LAYER B: Isolate Scripts (Tamil, Latin, Digits) to prevent leakage
+    # LAYER C: ByteLevel with add_prefix_space=True (Standard for GPT-2/Llama)
+    
     tokenizer.pre_tokenizer = Sequence([
-        pre_tokenizers.Whitespace(),
-        Split(pattern=" @@ ", behavior="removed"), # Clean up morpheme markers
-        Split(pattern=r"([\u0B80-\u0BFF]+)", behavior="isolated"), # Tamil Script
-        Split(pattern=r"([a-zA-Z]+)", behavior="isolated"),          # Latin Script
-        Split(pattern=r"([0-9]+)", behavior="isolated"),             # Digits
-        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
+        Split(pattern="@@", behavior="removed"),
+        # Regex to split text by script while preserving everything else
+        Split(pattern=r"([\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+)", behavior="isolated"),
+        pre_tokenizers.ByteLevel(add_prefix_space=True, use_regex=True),
     ])
     
     # 3. Train
-    # min_frequency=5: High enough to ignore noise, low enough to catch morphology.
+    # min_frequency=2: Essential for low-resource or agglutinative languages
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
-        min_frequency=5, 
+        min_frequency=2, 
         show_progress=True,
         special_tokens=["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"],
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet()
