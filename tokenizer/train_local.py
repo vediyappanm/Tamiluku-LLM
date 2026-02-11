@@ -224,7 +224,9 @@ def main():
             log.error(f"  Also tried: {alt}")
             sys.exit(1)
 
-    seg = corpus.with_suffix(f".seg{args.max_mb}mb.txt")
+    # Kaggle/Local Fix: Always save the segmented file in the current working 
+    # directory, NOT in the potentially read-only input folder.
+    seg = Path(corpus.name).with_suffix(f".seg{args.max_mb}mb.txt")
 
     log.info("=" * 60)
     log.info("BULLETPROOF AMB TOKENIZER TRAINING")
