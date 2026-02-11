@@ -182,34 +182,35 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     log.info(f"Target Vocab: {vocab_size}")
     log.info(f"Corpus:       {corpus_path}")
     
-    # Initialize Tokenizer Model
-    # We use BPE because it handles byte fallback beautifully.
-    tokenizer = Tokenizer(models.BPE(unk_token=None))
+    # --- PHASE 1: Pre-segmentation (Fast File Mode) ---
+    # To avoid OOM and speed up training, we pre-process the text into a 
+    # temporary segmented file that the C++ trainer can read directly.
+    segmented_corpus_path = corpus_path.with_suffix(".segmented.tmp")
     
-    # --- Normalization ---
-    # We apply NFC here as a safeguard, even though iterator does deep norm
+    if not segmented_corpus_path.exists():
+        log.info(f"Pre-segmenting corpus to {segmented_corpus_path}...")
+        iterator = AMBCorpusIterator(corpus_path)
+        with open(segmented_corpus_path, "w", encoding="utf-8") as f_out:
+            for batch in tqdm(iterator, desc="Segmenting"):
+                for line in batch:
+                    f_out.write(line + "\n")
+    else:
+        log.info(f"Using existing segmented corpus: {segmented_corpus_path}")
+
+    # --- PHASE 2: Tokenizer Configuration ---
+    tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC()
     
     # Optimized Pre-tokenizer for Memory Efficiency
-    # Instead of splitting every syllable (which OOMs on Kaggle),
-    # we ONLY split at the boundaries we want to protect:
-    # 1. Morpheme boundaries (@@)
-    # 2. Word boundaries (spaces)
-    # 3. Script boundaries (Tamil vs English vs Numbers)
-    
-    # This regex isolates scripts but DOES NOT shred Tamil words into characters
     SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
     
     tokenizer.pre_tokenizer = Sequence([
-        # 1. Protect Morpheme Boundaries
         Split(pattern=" @@ ", behavior="isolated"),
-        # 2. Protect Word/Script Boundaries
         Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
-        # 3. Convert to bytes for BPE
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
     ])
 
-    # --- Trainer ---
+    # --- PHASE 3: Training ---
     special_tokens = hf_cfg.get("special_tokens", [
         "<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"
     ])
@@ -222,16 +223,30 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
     )
 
-    # --- Training Step ---
-    log.info("Starting BPE Training from AMB Iterator...")
-    iterator = AMBCorpusIterator(corpus_path)
-    
-    # We wrap in a generator to satisfy the library's requirement
-    def combined_iterator():
-        for batch in iterator:
-            yield batch
+    log.info("Starting Native BPE Training (Fast Mode)...")
+    # Training from file is 10x faster and uses much less RAM than iterator
+    tokenizer.train([str(segmented_corpus_path)], trainer)
 
-    tokenizer.train_from_iterator(combined_iterator(), trainer)
+    # --- PHASE 4: Save & Cleanup ---
+    tokenizer.decoder = decoders.ByteLevel()
+    
+    model_path = output_dir / "tokenizer.json"
+    tokenizer.save(str(model_path))
+    
+    with open(output_dir / "tokenizer_config.json", "w") as f:
+        json.dump({
+            "model_type": "gpt2",
+            "tokenizer_class": "PreTrainedTokenizerFast",
+            "clean_up_tokenization_spaces": True,
+            "add_prefix_space": False,
+        }, f, indent=2)
+        
+    log.info(f"Model saved to {output_dir}")
+    
+    # Optional: Keep the segmented file for debugging, or delete to save space
+    # os.remove(segmented_corpus_path) 
+    
+    return str(model_path)
 
     # --- Post-processing ---
     # Merge dots and byte-fallback cleanup
