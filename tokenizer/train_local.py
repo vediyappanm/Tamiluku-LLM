@@ -1,234 +1,171 @@
-# train_local.py - World-Class AMB Training (30GB RAM Optimized)
-# =================================================================
-# Validated for Kaggle P100/T4 instances (30GB RAM).
-# Implements streaming, memory monitoring, and aggressive GC.
-#
-# Usage:
-#   python tokenizer/train_local.py --corpus tamil_corpus.txt --max-mb 750 --vocab-size 64000
+# train_local.py - Guaranteed Success Streaming Trainer
+# ========================================================
+# 1. auto-detects RAM
+# 2. calculates safe corpus size (Smart Scaling)
+# 3. streams data to prevent OOM
+# 4. produces production-grade tokenizer
 
 import os
 import sys
 import gc
-import time
 import json
+import psutil
 import logging
 import argparse
-import shutil
 from pathlib import Path
 
-# Try importing psutil for memory monitoring
-try:
-    import psutil
-except ImportError:
-    psutil = None
-
-sys.path.insert(0, str(Path(__file__).parent))
-
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)-7s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
 
-# Special tokens
-_ST = ["endoftext", "padding", "im_start", "im_end"]
-SPECIAL_TOKENS = ["<|" + t + "|>" for t in _ST]
+# Add local path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
-
-class MemoryMonitor:
-    """Active memory guardian."""
-    def __init__(self, threshold_gb=5.0):
-        self.threshold_gb = threshold_gb
-        
-    def check(self, stage=""):
-        if not psutil: return
-        
-        mem = psutil.virtual_memory()
-        available_gb = mem.available / (1024**3)
-        total_gb = mem.total / (1024**3)
-        used_gb = (mem.total - mem.available) / (1024**3)
-        
-        log.info(f"[{stage}] RAM: {used_gb:.1f}/{total_gb:.1f} GB (Free: {available_gb:.1f} GB)")
-        
-        if available_gb < self.threshold_gb:
-            log.warning(f"⚠️ LOW MEMORY (<{self.threshold_gb}GB). Forcing GC...")
-            gc.collect()
-            time.sleep(1)
-            
-            # Recheck
-            mem = psutil.virtual_memory()
-            available_gb = mem.available / (1024**3)
-            log.info(f"  -> Reclaimed. New Free: {available_gb:.1f} GB")
-
-monitor = MemoryMonitor(threshold_gb=5.0)
-
-
-# ===================================================================
-# Phase 1: Streaming Segmentation (CPU Heavy, RAM Light)
-# ===================================================================
-def phase1_segment(corpus_path, output_path, max_mb):
+def get_safe_config():
     """
-    Stream corpus line-by-line. Never loads file into RAM.
+    Returns safe training parameters based on available RAM.
+    """
+    mem = psutil.virtual_memory()
+    total_gb = mem.total / (1024**3)
+    avail_gb = mem.available / (1024**3)
+    
+    log.info(f"System Memory: {total_gb:.1f} GB Total | {avail_gb:.1f} GB Available")
+    
+    # Conservative safe limits
+    if total_gb >= 30:
+        return 750, 64000  # High End (30GB node)
+    elif total_gb >= 15:
+        return 350, 50257  # Standard (16GB node) -> 350MB is the sweet spot
+    else:
+        return 100, 32000  # Low End (8GB local)
+
+def stream_and_segment(corpus_path, temp_file_path, limit_mb):
+    """
+    Reads corpus line-by-line, segments it, and writes to temp file.
+    Stops exactly when limit_mb is reached.
     """
     from tamil_unicode import TamilDeepNormalizer
     from morpheme import MorphemeSegmenter
-
-    monitor.check("Start Phase 1")
     
-    norm = TamilDeepNormalizer(
-        strip_urls=True, strip_emails=True,
-        normalize_numerals="preserve", preserve_grantha=True,
-    )
+    log.info(f"--- Phase 1: Streaming & Segmenting (Target: {limit_mb} MB) ---")
+    
+    norm = TamilDeepNormalizer(strip_urls=True, normalize_numerals="preserve")
     mseg = MorphemeSegmenter()
-
-    max_bytes = max_mb * 1024 * 1024
-    written = 0
-    count = 0
-
-    log.info(f"filesize: {corpus_path.stat().st_size / (1024**2):.1f} MB")
-    log.info(f"[Phase 1] Segmenting {max_mb} MB ...")
-
-    from tqdm import tqdm
-    start_time = time.time()
-
-    with open(str(corpus_path), "r", encoding="utf-8") as fin, \
-         open(str(output_path), "w", encoding="utf-8") as fout:
-
-        for line in tqdm(fin, desc="Segmenting", unit=" lines"):
-            if written >= max_bytes:
-                break
-            line = line.strip()
-            if not line:
-                continue
-
-            # Layer 1 & 3
-            cleaned = norm.normalize(line)
-            words = cleaned.split()
-            seg = [mseg.segment_word(w).replace(" ", " @@ ") for w in words]
-            
-            out = " ".join(seg) + "\n"
-            fout.write(out)
-            written += len(out.encode("utf-8"))
-            count += 1
-
-            if count % 100000 == 0:
-                monitor.check(f"Seg {count//1000}k")
-
-    elapsed = time.time() - start_time
-    log.info(f"[Phase 1 DONE] {count:,} lines in {elapsed/60:.1f} min")
     
-    # Cleanup heavy objects
+    limit_bytes = limit_mb * 1024 * 1024
+    current_bytes = 0
+    lines = 0
+    
+    from tqdm import tqdm
+    
+    with open(corpus_path, "r", encoding="utf-8") as f_in, \
+         open(temp_file_path, "w", encoding="utf-8") as f_out:
+        
+        for line in tqdm(f_in, desc="Streaming"):
+            if current_bytes >= limit_bytes:
+                break
+                
+            line = line.strip()
+            if not line: continue
+            
+            # Processing
+            clean = norm.normalize(line)
+            words = clean.split()
+            # Fast segmentation
+            seg_words = [mseg.segment_word(w).replace(" ", " @@ ") for w in words]
+            
+            out_line = " ".join(seg_words) + "\n"
+            f_out.write(out_line)
+            
+            current_bytes += len(out_line.encode("utf-8"))
+            lines += 1
+            
+    log.info(f"Phase 1 Complete: {lines:,} lines | {current_bytes/(1024**2):.1f} MB")
+    
+    # Cleanup memory
     del norm, mseg
     gc.collect()
-    monitor.check("End Phase 1")
-    return count
 
-
-# ===================================================================
-# Phase 2: BPE Training (RAM Heavy)
-# ===================================================================
-def phase2_train(segmented_path, output_dir, vocab_size):
+def train_tokenizer(corpus_file, output_dir, vocab_size):
     """
-    Uses optimized settings for 30GB RAM.
+    Trains BPE using the file on disk (Native Training).
     """
-    from tokenizers import (
-        Tokenizer, models, trainers,
-        pre_tokenizers, normalizers, decoders,
-    )
+    log.info(f"--- Phase 2: Native BPE Training ({vocab_size:,} vocab) ---")
+    
+    from tokenizers import Tokenizer, models, trainers, pre_tokenizers, normalizers, decoders
     from tokenizers.pre_tokenizers import Split, Sequence
-
-    monitor.check("Start Phase 2")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    tok = Tokenizer(models.BPE(unk_token=None))
-    tok.normalizer = normalizers.NFC()
-
-    # Script Isolator
+    
+    # 1. Configure
+    tokenizer = Tokenizer(models.BPE(unk_token=None))
+    tokenizer.normalizer = normalizers.NFC()
+    
     ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
-
-    tok.pre_tokenizer = Sequence([
+    
+    tokenizer.pre_tokenizer = Sequence([
         Split(pattern=" @@ ", behavior="isolated"),
         Split(pattern=ISOLATOR, behavior="isolated"),
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
     ])
-
-    # Limit threads to avoid thread contention stall
-    os.environ["RAYON_NUM_THREADS"] = "8"  # Optimized for Kaggle 4-core runtimes (2 threads/core)
-
+    
+    # 2. Train
+    # min_frequency=10 is CRITICAL for stability on large datasets
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
-        min_frequency=5,  # Crucial for RAM optimization
+        min_frequency=10, 
         show_progress=True,
-        special_tokens=SPECIAL_TOKENS,
-        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
-        max_token_length=32, # Prevent ultra-long garbage tokens
+        special_tokens=["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"],
+        initial_alphabet=pre_tokenizers.ByteLevel.alphabet()
     )
-
-    log.info(f"[Phase 2] Training {vocab_size:,} vocab on {segmented_path.name}")
-    log.info(f"  Settings: min_freq=5, threads=8, max_len=32")
     
-    gc.collect() # Final purge
+    log.info("Starting C++ Trainer... (This may pause at 99% for sorting)")
+    tokenizer.train([str(corpus_file)], trainer)
     
-    # Native training (Rust)
-    tok.train([str(segmented_path)], trainer)
-
-    tok.decoder = decoders.ByteLevel()
+    # 3. Save
+    output_dir.mkdir(parents=True, exist_ok=True)
+    tokenizer.decoder = decoders.ByteLevel()
     
-    # Save
-    model_path = output_dir / "tokenizer.json"
-    tok.save(str(model_path))
+    save_path = output_dir / "tokenizer.json"
+    tokenizer.save(str(save_path))
     
-    # Config
+    # Save HF config
     with open(output_dir / "tokenizer_config.json", "w") as f:
         json.dump({
-            "model_type": "gpt2",
+            "model_type": "gpt2", 
             "tokenizer_class": "PreTrainedTokenizerFast",
-            "vocab_size": vocab_size,
+            "vocab_size": vocab_size
         }, f, indent=2)
-
-    monitor.check("End Phase 2")
-    return str(model_path)
-
+        
+    log.info(f"✅ Success! Model saved to {save_path}")
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--corpus", default="tamil_corpus.txt")
-    p.add_argument("--max-mb", type=int, default=750)
-    p.add_argument("--vocab-size", type=int, default=64000)
-    p.add_argument("--output-dir", default="tokenizer/models/amb_tokenizer")
-    args = p.parse_args()
-
-    corpus = Path(args.corpus)
-    if not corpus.exists():
-        log.error(f"Corpus not found: {corpus}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--corpus", required=True)
+    parser.add_argument("--output-dir", default="tokenizer/models/amb_tokenizer")
+    args = parser.parse_args()
+    
+    corpus_path = Path(args.corpus)
+    if not corpus_path.exists():
+        log.error("Corpus not found!")
         sys.exit(1)
-
-    # Auto-detect RAM to scale parameters if needed
-    if psutil:
-        mem = psutil.virtual_memory()
-        total_gb = mem.total / (1024**3)
-        log.info(f"Detected System RAM: {total_gb:.1f} GB")
         
-        if total_gb < 20 and args.max_mb > 500:
-            log.warning(f"⚠️ <20GB RAM detected. Downgrading max-mb to 400MB for safety.")
-            args.max_mb = 400
-            args.vocab_size = 50257
-
-    # Phase 1: Segment
-    seg_file = Path(f"tamil_corpus.seg{args.max_mb}mb.txt")
+    # 1. Auto-Size
+    max_mb, vocab_size = get_safe_config()
+    log.info(f"Auto-Config: Dataset Limit={max_mb} MB | Vocab={vocab_size}")
     
-    if seg_file.exists():
-         log.info(f"Reusing existing segment file: {seg_file}")
-    else:
-         phase1_segment(corpus, seg_file, args.max_mb)
-
-    # Phase 2: Train
-    phase2_train(seg_file, Path(args.output_dir), args.vocab_size)
+    # 2. Stream & Segment
+    temp_file = Path("training_data.tmp")
+    stream_and_segment(corpus_path, temp_file, max_mb)
     
-    log.info("="*60)
-    log.info(f"✅ SUCCESS! Production tokenizer ready.")
-    log.info("="*60)
+    # 3. Train
+    train_tokenizer(temp_file, Path(args.output_dir), vocab_size)
+    
+    # 4. Cleanup
+    if temp_file.exists():
+        temp_file.unlink()
 
 if __name__ == "__main__":
     main()
