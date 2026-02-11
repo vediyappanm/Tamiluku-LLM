@@ -76,8 +76,8 @@ def stream_and_segment(corpus_path, temp_file_path, limit_mb):
             clean = norm.normalize(line)
             words = clean.split()
             # Fast segmentation: "வீடு கள்" -> "வீடு@@கள்"
+            # We use "@@" purely to prevent merges across morpheme boundaries
             seg_words = [mseg.segment_word(w).replace(" ", "@@") for w in words]
-            
             out_line = " ".join(seg_words) + "\n"
             f_out.write(out_line)
             
@@ -108,9 +108,9 @@ def inject_syllable_seed(temp_file_path):
             syllables.append(c + vs)
     syllables.append("ஃ")
     
-    # Repeat each syllable 2000 times on separate lines to ensure 100% coverage
-    # "\n" ensures 2 characters in different syllables aren't accidentally merged.
-    seed_text = ("\n".join(syllables) + "\n") * 2000
+    # Repeat each syllable 3000 times to ensure BPE finds them and merges them
+    # Space separation IS CRITICAL. Newlines prevent BPE from merging.
+    seed_text = (" ".join(syllables) + "\n") * 3000
     
     # Prepend to the file
     with open(temp_file_path, "r", encoding="utf-8") as f:
@@ -135,19 +135,14 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
     tokenizer.normalizer = normalizers.NFC()
     
     # 2. Production Pre-tokenization Pipeline
-    # LAYER A: Remove synthetic morpheme markers (hard boundaries)
-    # LAYER B: Isolate Scripts (Tamil, Latin, Digits) to prevent leakage
-    # LAYER C: ByteLevel with add_prefix_space=True (Standard for GPT-2/Llama)
-    
+    # Layer 1: Surgical removal of morpheme markers (hard boundaries)
+    # Layer 2: Clean ByteLevel BPE (No complex script splits which break roundtrip)
     tokenizer.pre_tokenizer = Sequence([
         Split(pattern="@@", behavior="removed"),
-        # Regex to split text by script while preserving everything else
-        Split(pattern=r"([\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+)", behavior="isolated"),
-        pre_tokenizers.ByteLevel(add_prefix_space=True, use_regex=True),
+        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
     
     # 3. Train
-    # min_frequency=2: Essential for low-resource or agglutinative languages
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=2, 
