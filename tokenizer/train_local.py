@@ -136,7 +136,6 @@ def phase2_train(segmented_path, output_dir, vocab_size):
 
     # For a 750MB+ corpus, min_frequency=2 creates too many rare pairs.
     # Increasing to 5 significantly speeds up training and reduces RAM usage
-    # without any loss in production quality.
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=5,
@@ -146,12 +145,15 @@ def phase2_train(segmented_path, output_dir, vocab_size):
     )
 
     log.info(f"[Phase 2] Training {vocab_size:,} vocab BPE on {segmented_path.name} ...")
-    log.info(f"  RAM optimization: min_frequency=5")
+    log.info(f"  RAM optimization: min_frequency=5, threads=4")
+    log.info(f"  NOTE: It may look 'stuck' at 99% for 5-10 mins while counting pairs.")
     
-    # Final RAM cleanup check before C++ engine takes over
+    # Limit threads to prevent memory contention on Kaggle
+    os.environ["RAYON_NUM_THREADS"] = "4"
+    
     gc.collect()
 
-    # Native file training - C++ reads file directly
+    # Native file training
     tok.train([str(segmented_path)], trainer)
 
     tok.decoder = decoders.ByteLevel()
