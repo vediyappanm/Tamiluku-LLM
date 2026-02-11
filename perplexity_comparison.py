@@ -325,12 +325,17 @@ def main():
     amb_tok_path = args.amb_tokenizer
     if amb_tok_path is None:
         amb_dir = cfg["tokenizer"]["output_dir"]
-        amb_tok_path = str(resolve_path(base_dir, amb_dir) / "tokenizer.json")
+        # Try root models dir first, then nested tokenizer/models
+        path1 = Path(amb_dir) / "tokenizer.json"
+        path2 = resolve_path(base_dir, amb_dir) / "tokenizer.json"
+        amb_tok_path = str(path1) if path1.exists() else str(path2)
 
     base_tok_path = args.baseline_tokenizer
     if base_tok_path is None:
         base_dir_cfg = cfg["huggingface"]["output_dir"]
-        base_tok_path = str(resolve_path(base_dir, base_dir_cfg) / "tokenizer.json")
+        path1 = Path(base_dir_cfg) / "tokenizer.json"
+        path2 = resolve_path(base_dir, base_dir_cfg) / "tokenizer.json"
+        base_tok_path = str(path1) if path1.exists() else str(path2)
 
     train_path = args.train_file or str(resolve_path(base_dir, cfg["corpus"]["output_file"]))
     eval_path = args.eval_file or str(resolve_path(base_dir, cfg["corpus"]["eval_dir"]) / "eval_corpus.txt")
