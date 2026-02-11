@@ -1,0 +1,745 @@
+{
+  "tokenizer_name": "amb-amb_tokenizer",
+  "vocab_size": 48000,
+  "fertility": {
+    "avg_fertility": 2.0718,
+    "median_fertility": 1.8333,
+    "total_words": 195,
+    "total_tokens": 404,
+    "num_documents": 30
+  },
+  "compression": {
+    "bytes_per_token": 10.5396,
+    "total_bytes": 4258,
+    "total_tokens": 404
+  },
+  "roundtrip": {
+    "roundtrip_accuracy": 1.0,
+    "total_tested": 30,
+    "passed": 30,
+    "failed": 0,
+    "failure_samples": []
+  },
+  "tamil_coverage": {
+    "tamil_syllable_coverage": 0.6275,
+    "total_syllables": 247,
+    "covered": 155,
+    "uncovered_count": 92,
+    "uncovered_samples": [
+      {
+        "syllable": "ச்",
+        "tokenized_as": [
+          "ச",
+          "்"
+        ]
+      },
+      {
+        "syllable": "ஞ்",
+        "tokenized_as": [
+          "ஞ",
+          "்"
+        ]
+      },
+      {
+        "syllable": "ந்",
+        "tokenized_as": [
+          "ந",
+          "்"
+        ]
+      },
+      {
+        "syllable": "ள்",
+        "tokenized_as": [
+          "ள",
+          "்"
+        ]
+      },
+      {
+        "syllable": "கீ",
+        "tokenized_as": [
+          "க",
+          "ீ"
+        ]
+      },
+      {
+        "syllable": "கெ",
+        "tokenized_as": [
+          "க",
+          "ெ"
+        ]
+      },
+      {
+        "syllable": "ஙா",
+        "tokenized_as": [
+          "ங",
+          "ா"
+        ]
+      },
+      {
+        "syllable": "ஙி",
+        "tokenized_as": [
+          "ங",
+          "ி"
+        ]
+      },
+      {
+        "syllable": "ஙீ",
+        "tokenized_as": [
+          "ங",
+          "ீ"
+        ]
+      },
+      {
+        "syllable": "ஙு",
+        "tokenized_as": [
+          "ங",
+          "ு"
+        ]
+      },
+      {
+        "syllable": "ஙூ",
+        "tokenized_as": [
+          "ங",
+          "ூ"
+        ]
+      },
+      {
+        "syllable": "ஙெ",
+        "tokenized_as": [
+          "ங",
+          "ெ"
+        ]
+      },
+      {
+        "syllable": "ஙே",
+        "tokenized_as": [
+          "ங",
+          "ே"
+        ]
+      },
+      {
+        "syllable": "ஙை",
+        "tokenized_as": [
+          "ங",
+          "ை"
+        ]
+      },
+      {
+        "syllable": "ஙொ",
+        "tokenized_as": [
+          "ங",
+          "ொ"
+        ]
+      },
+      {
+        "syllable": "ஙோ",
+        "tokenized_as": [
+          "ங",
+          "ோ"
+        ]
+      },
+      {
+        "syllable": "ஙௌ",
+        "tokenized_as": [
+          "ங",
+          "ௌ"
+        ]
+      },
+      {
+        "syllable": "ஞா",
+        "tokenized_as": [
+          "ஞ",
+          "ா"
+        ]
+      },
+      {
+        "syllable": "ஞி",
+        "tokenized_as": [
+          "ஞ",
+          "ி"
+        ]
+      },
+      {
+        "syllable": "ஞீ",
+        "tokenized_as": [
+          "ஞ",
+          "ீ"
+        ]
+      }
+    ]
+  },
+  "morpheme_boundaries": {
+    "morpheme_boundary_accuracy": 1.0,
+    "total_tested": 94,
+    "aligned": 94,
+    "results": [
+      {
+        "word": "போகவேண்டியிருந்தது",
+        "expected_morphemes": [
+          "போக",
+          "வேண்டிய",
+          "இருந்த",
+          "து"
+        ],
+        "actual_tokens": [
+          "போக",
+          "வேண்ட",
+          "ியிருந்த",
+          "து"
+        ],
+        "boundary_accuracy": 0.75
+      },
+      {
+        "word": "படிக்கிறான்",
+        "expected_morphemes": [
+          "படி",
+          "க்கிறான்"
+        ],
+        "actual_tokens": [
+          "படிக்க",
+          "ிற",
+          "ான்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "வருகிறார்கள்",
+        "expected_morphemes": [
+          "வரு",
+          "கிறார்கள்"
+        ],
+        "actual_tokens": [
+          "வர",
+          "ுகிறார்கள",
+          "்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "எழுதுவதற்கு",
+        "expected_morphemes": [
+          "எழுது",
+          "வதற்கு"
+        ],
+        "actual_tokens": [
+          "எழுத",
+          "ுவதற்க",
+          "ு"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "சொல்லவில்லை",
+        "expected_morphemes": [
+          "சொல்ல",
+          "வில்லை"
+        ],
+        "actual_tokens": [
+          "சொல்ல",
+          "வில்லை"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "நடக்கும்",
+        "expected_morphemes": [
+          "நட",
+          "க்கும்"
+        ],
+        "actual_tokens": [
+          "ந",
+          "டக்க",
+          "ும்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "பேசிக்கொண்டிருந்தான்",
+        "expected_morphemes": [
+          "பேசி",
+          "க்கொண்டிருந்தான்"
+        ],
+        "actual_tokens": [
+          "பேச",
+          "ிக்கொண்ட",
+          "ிருந்த",
+          "ான்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "பார்க்கலாம்",
+        "expected_morphemes": [
+          "பார்",
+          "க்கலாம்"
+        ],
+        "actual_tokens": [
+          "ப",
+          "ார்க்க",
+          "லாம",
+          "்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "செய்யப்படுகிறது",
+        "expected_morphemes": [
+          "செய்ய",
+          "ப்படுகிறது"
+        ],
+        "actual_tokens": [
+          "செய்ய",
+          "ப்படுகிறது"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "கற்றுக்கொள்ள",
+        "expected_morphemes": [
+          "கற்று",
+          "க்கொள்ள"
+        ],
+        "actual_tokens": [
+          "கற்ற",
+          "ுக்கொள்ள"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "ஓடினான்",
+        "expected_morphemes": [
+          "ஓடி",
+          "னான்"
+        ],
+        "actual_tokens": [
+          "ஓ",
+          "டின",
+          "ான்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "பாடுவாள்",
+        "expected_morphemes": [
+          "பாடு",
+          "வாள்"
+        ],
+        "actual_tokens": [
+          "பாட",
+          "ுவ",
+          "ாள்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "சாப்பிட்டேன்",
+        "expected_morphemes": [
+          "சாப்பிட்",
+          "டேன்"
+        ],
+        "actual_tokens": [
+          "ச",
+          "ாப்பிட்ட",
+          "ேன்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "தூங்கினார்கள்",
+        "expected_morphemes": [
+          "தூங்கி",
+          "னார்கள்"
+        ],
+        "actual_tokens": [
+          "த",
+          "ூங்க",
+          "ினார்கள",
+          "்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "விளையாடுகிறோம்",
+        "expected_morphemes": [
+          "விளையாடு",
+          "கிறோம்"
+        ],
+        "actual_tokens": [
+          "விளையாட",
+          "ுகிற",
+          "ோம்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "படிப்பார்கள்",
+        "expected_morphemes": [
+          "படி",
+          "ப்பார்கள்"
+        ],
+        "actual_tokens": [
+          "ப",
+          "டிப்ப",
+          "ார்கள",
+          "்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "எழுதினேன்",
+        "expected_morphemes": [
+          "எழுதி",
+          "னேன்"
+        ],
+        "actual_tokens": [
+          "எழுத",
+          "ின",
+          "ேன்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "கேட்டான்",
+        "expected_morphemes": [
+          "கேட்",
+          "டான்"
+        ],
+        "actual_tokens": [
+          "கேட்ட",
+          "ான்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "வீட்டிற்கு",
+        "expected_morphemes": [
+          "வீட்",
+          "டிற்கு"
+        ],
+        "actual_tokens": [
+          "வீட்ட",
+          "ிற்க",
+          "ு"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "பள்ளியில்",
+        "expected_morphemes": [
+          "பள்ளி",
+          "யில்"
+        ],
+        "actual_tokens": [
+          "பள்ள",
+          "ியில",
+          "்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "மாணவர்களுக்கு",
+        "expected_morphemes": [
+          "மாணவர்கள்",
+          "உக்கு"
+        ],
+        "actual_tokens": [
+          "ம",
+          "ாணவர்கள",
+          "ுக்க",
+          "ு"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "நாட்டின்",
+        "expected_morphemes": [
+          "நாட்",
+          "டின்"
+        ],
+        "actual_tokens": [
+          "நாட்ட",
+          "ின்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "ஊரிலிருந்து",
+        "expected_morphemes": [
+          "ஊரில்",
+          "இருந்து"
+        ],
+        "actual_tokens": [
+          "ஊர",
+          "ிலிருந்த",
+          "ு"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "கடையிடம்",
+        "expected_morphemes": [
+          "கடை",
+          "யிடம்"
+        ],
+        "actual_tokens": [
+          "கடைய",
+          "ிடம்"
+        ],
+        "boundary_accuracy": 0.5
+      },
+      {
+        "word": "அழகான",
+        "expected_morphemes": [
+          "அழக",
+          "ான"
+        ],
+        "actual_tokens": [
+          "அழக",
+          "ான"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "நல்லவன்",
+        "expected_morphemes": [
+          "நல்ல",
+          "வன்"
+        ],
+        "actual_tokens": [
+          "நல்ல",
+          "வன",
+          "்"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "பெரியது",
+        "expected_morphemes": [
+          "பெரிய",
+          "து"
+        ],
+        "actual_tokens": [
+          "பெரிய",
+          "து"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "சிறியவள்",
+        "expected_morphemes": [
+          "சிறிய",
+          "வள்"
+        ],
+        "actual_tokens": [
+          "சிற",
+          "ிய",
+          "வள",
+          "்"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "புதியவை",
+        "expected_morphemes": [
+          "புதிய",
+          "வை"
+        ],
+        "actual_tokens": [
+          "புதிய",
+          "வை"
+        ],
+        "boundary_accuracy": 1.0
+      },
+      {
+        "word": "படிக்கவேண்டியதில்லை",
+        "expected_morphemes": [
+          "படிக்க",
+          "வேண்டிய",
+          "தில்லை"
+        ],
+        "actual_tokens": [
+          "படிக்க",
+          "வேண்டியத",
+          "ில்லை"
+        ],
+        "boundary_accuracy": 0.67
+      }
+    ]
+  },
+  "cross_script": {
+    "cross_script_leakage_count": 126,
+    "leaky_tokens": [
+      {
+        "id": 28523,
+        "token": "à®®à¯įĠ(B"
+      },
+      {
+        "id": 40020,
+        "token": "à®®à¯įĠ(V"
+      },
+      {
+        "id": 41131,
+        "token": "à®®à¯įĠ(Ch"
+      },
+      {
+        "id": 25406,
+        "token": "à¯įĠ(D"
+      },
+      {
+        "id": 35909,
+        "token": "a)Ġà®İà®©"
+      },
+      {
+        "id": 35478,
+        "token": "à®¿Ġ(L"
+      },
+      {
+        "id": 17976,
+        "token": "à®¿Ġ(M"
+      },
+      {
+        "id": 45622,
+        "token": "pxĠà®¤à®®à®¿à®´à¯įà®¨à®¾à®Łà¯ģĠà®¤à®²à¯Īà®¨à®ķà®°"
+      },
+      {
+        "id": 35910,
+        "token": "e)Ġà®İà®©à¯įà®±"
+      },
+      {
+        "id": 28524,
+        "token": "à®®à¯įĠ(G"
+      },
+      {
+        "id": 31876,
+        "token": "à®®à¯įĠ(N"
+      },
+      {
+        "id": 25876,
+        "token": "à®¿Ġ(D"
+      },
+      {
+        "id": 47181,
+        "token": "s)Ġà®®"
+      },
+      {
+        "id": 41167,
+        "token": "à¯ģĠ(K"
+      },
+      {
+        "id": 45989,
+        "token": "à¯įĠ(G"
+      },
+      {
+        "id": 34326,
+        "token": "CĠà®¯à®¿"
+      },
+      {
+        "id": 37180,
+        "token": "à®¿Ġ(H"
+      },
+      {
+        "id": 24048,
+        "token": "à®©à¯įĠ<small>"
+      },
+      {
+        "id": 12863,
+        "token": "ĠMissionĠPress,Ġà®¤"
+      },
+      {
+        "id": 30048,
+        "token": "thumb|à®µ"
+      }
+    ]
+  },
+  "domain_fertility": {
+    "formal_prose": {
+      "avg_fertility": 1.6061,
+      "total_words": 33,
+      "total_tokens": 53
+    },
+    "colloquial": {
+      "avg_fertility": 2.1667,
+      "total_words": 30,
+      "total_tokens": 65
+    },
+    "classical": {
+      "avg_fertility": 1.9744,
+      "total_words": 39,
+      "total_tokens": 77
+    },
+    "technical": {
+      "avg_fertility": 1.9333,
+      "total_words": 30,
+      "total_tokens": 58
+    },
+    "code_mixed": {
+      "avg_fertility": 3.0857,
+      "total_words": 35,
+      "total_tokens": 108
+    },
+    "numeric": {
+      "avg_fertility": 1.5357,
+      "total_words": 28,
+      "total_tokens": 43
+    }
+  },
+  "token_length_distribution": {
+    "avg_token_length_chars": 4.04,
+    "distribution": {
+      "1": 0.1496,
+      "2": 0.187,
+      "3": 0.2269,
+      "4": 0.1372,
+      "5": 0.0623,
+      "6": 0.0698,
+      "7": 0.0499,
+      "8": 0.0299,
+      "9": 0.0224,
+      "10": 0.02,
+      "11": 0.015,
+      "12": 0.005,
+      "13": 0.0125,
+      "14": 0.0075,
+      "15": 0.005
+    }
+  },
+  "target_check": {
+    "avg_fertility": {
+      "status": "FAIL",
+      "actual": 2.0718,
+      "target": 1.5,
+      "operator": "<="
+    },
+    "bytes_per_token": {
+      "status": "PASS",
+      "actual": 10.5396,
+      "target": 4.0,
+      "operator": ">="
+    },
+    "roundtrip_accuracy": {
+      "status": "PASS",
+      "actual": 1.0,
+      "target": 1.0,
+      "operator": ">="
+    },
+    "tamil_syllable_coverage": {
+      "status": "FAIL",
+      "actual": 0.6275,
+      "target": 0.95,
+      "operator": ">="
+    },
+    "morpheme_boundary_accuracy": {
+      "status": "PASS",
+      "actual": 1.0,
+      "target": 0.7,
+      "operator": ">="
+    },
+    "cross_script_leakage_count": {
+      "status": "FAIL",
+      "actual": 126,
+      "target": 0,
+      "operator": "<="
+    },
+    "overall": "FAIL"
+  }
+}

@@ -188,43 +188,38 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     segmented_corpus_path = corpus_path.with_suffix(".segmented.tmp")
     
     if not segmented_corpus_path.exists():
-        log.info(f"Pre-segmenting corpus in PARALLEL to {segmented_corpus_path}...")
+        log.info(f"Pre-segmenting corpus (streaming) to {segmented_corpus_path}...")
         
-        from concurrent.futures import ProcessPoolExecutor
-        cpu_count = os.cpu_count() or 4
+        # Use streaming approach - process one line at a time
+        # This uses ~100MB RAM regardless of corpus size
+        normalizer = TamilDeepNormalizer(
+            strip_urls=True, strip_emails=True,
+            normalize_numerals="preserve", preserve_grantha=True,
+        )
+        morpheme_seg = MorphemeSegmenter()
         
-        # Helper to process a single line (must be top-level for pickling)
-        def segment_line(line):
-            # Normalizer (Layer 1)
-            from tamil_unicode import TamilDeepNormalizer
-            from morpheme import MorphemeSegmenter
-            
-            norm = TamilDeepNormalizer()
-            mseg = MorphemeSegmenter()
-            
-            line = line.strip()
-            if not line: return None
-            cleaned = norm.normalize(line)
-            words = cleaned.split()
-            seg_words = [mseg.segment_word(w).replace(" ", " @@ ") for w in words]
-            return " ".join(seg_words)
-
-        # Re-defining within the main train flow for context
+        line_count = 0
         with open(str(corpus_path), "r", encoding="utf-8") as f_in, \
              open(str(segmented_corpus_path), "w", encoding="utf-8") as f_out:
-            
-            # Read all lines
-            lines = f_in.readlines()
-            
-            log.info(f"Dispatching {len(lines):,} lines to {cpu_count} workers...")
-            with ProcessPoolExecutor(max_workers=cpu_count) as executor:
-                # Process in large chunks for efficiency
-                results = list(tqdm(executor.map(segment_line, lines, chunksize=500), 
-                                   total=len(lines), desc="Parallel Segmenting"))
-            
-            for res in results:
-                if res:
-                    f_out.write(res + "\n")
+            for line in tqdm(f_in, desc="Segmenting", unit=" lines"):
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                cleaned = normalizer.normalize(line)
+                words = cleaned.split()
+                seg_words = []
+                for w in words:
+                    morphemes = morpheme_seg.segment_word(w)
+                    seg_words.append(morphemes.replace(" ", " @@ "))
+                
+                f_out.write(" ".join(seg_words) + "\n")
+                line_count += 1
+                
+                if line_count % 100000 == 0:
+                    log.info(f"  Segmented {line_count:,} lines...")
+        
+        log.info(f"  Segmentation complete: {line_count:,} lines written.")
     else:
         log.info(f"Using existing segmented corpus: {segmented_corpus_path}")
 
@@ -277,26 +272,6 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     # Optional: Keep the segmented file for debugging, or delete to save space
     # os.remove(segmented_corpus_path) 
     
-    return str(model_path)
-
-    # --- Post-processing ---
-    # Merge dots and byte-fallback cleanup
-    tokenizer.decoder = decoders.ByteLevel()
-    
-    # Save Model
-    model_path = output_dir / "tokenizer.json"
-    tokenizer.save(str(model_path))
-    
-    # Save HF config boilerplate
-    with open(output_dir / "tokenizer_config.json", "w") as f:
-        json.dump({
-            "model_type": "gpt2",
-            "tokenizer_class": "PreTrainedTokenizerFast",
-            "clean_up_tokenization_spaces": True,
-            "add_prefix_space": False,
-        }, f, indent=2)
-        
-    log.info(f"Model saved to {output_dir}")
     return str(model_path)
 
 

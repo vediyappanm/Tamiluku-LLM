@@ -23,6 +23,7 @@ import bz2
 import re
 import argparse
 import logging
+import inspect
 from pathlib import Path
 from typing import Generator, Optional
 
@@ -83,6 +84,33 @@ def write_docs_streaming(txt_path: Path, docs_iter, desc: str, max_docs: int = 0
     size_mb = bytes_written / (1024 * 1024)
     log.info(f"  {desc}: saved {count:,} documents ({size_mb:.1f} MB) to {txt_path}")
     return count
+
+
+def robust_load_dataset(path, name=None, split="train", streaming=True, **kwargs):
+    """Load a dataset with robust handling of trust_remote_code and gating."""
+    from datasets import load_dataset as hf_load_dataset
+    sig = inspect.signature(hf_load_dataset)
+    
+    load_kwargs = {
+        "path": path,
+        "split": split,
+        "streaming": streaming,
+        **kwargs
+    }
+    if name:
+        load_kwargs["name"] = name
+        
+    if "trust_remote_code" in sig.parameters:
+        load_kwargs["trust_remote_code"] = True
+        
+    try:
+        return hf_load_dataset(**load_kwargs)
+    except Exception as e:
+        if "gated" in str(e).lower() or "401" in str(e):
+            log.error(f"Dataset '{path}' is gated or requires authentication.")
+            log.info("Please request access on the Hugging Face website and then run:")
+            log.info("  python -m huggingface_hub.commands.user login")
+        raise e
 
 
 # ---------------------------------------------------------------------------
@@ -347,12 +375,6 @@ def download_wikipedia(cfg: dict, max_docs: int = 0):
 
 def download_culturax(cfg: dict, max_docs: int = 0):
     """Download Tamil split from CulturaX - highest quality web corpus."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "culturax_ta.txt"
 
@@ -366,13 +388,7 @@ def download_culturax(cfg: dict, max_docs: int = 0):
     log.info("  This is a large dataset (~5 GB). Download may take a while.")
 
     try:
-        ds = load_dataset(
-            cx_cfg["dataset"],
-            cx_cfg["language"],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(cx_cfg["dataset"], cx_cfg["language"])
 
         def doc_iter():
             for sample in ds:
@@ -384,7 +400,6 @@ def download_culturax(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"CulturaX download failed: {e}")
-        log.info("  You may need: huggingface-cli login")
         log.info("  Or manually download and place in data/raw/culturax_ta.txt")
 
 
@@ -394,12 +409,6 @@ def download_culturax(cfg: dict, max_docs: int = 0):
 
 def download_oscar(cfg: dict, max_docs: int = 0):
     """Download Tamil split from OSCAR via HuggingFace datasets."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "oscar_ta.txt"
 
@@ -412,13 +421,7 @@ def download_oscar(cfg: dict, max_docs: int = 0):
     log.info(f"Downloading OSCAR Tamil ({oscar_cfg['dataset']})...")
 
     try:
-        ds = load_dataset(
-            oscar_cfg["dataset"],
-            language=oscar_cfg["language"],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(oscar_cfg["dataset"], language=oscar_cfg["language"])
 
         def doc_iter():
             for sample in ds:
@@ -430,7 +433,6 @@ def download_oscar(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"OSCAR download failed (may need HF token): {e}")
-        log.info("  Skipping. Place file manually in data/raw/oscar_ta.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -439,12 +441,6 @@ def download_oscar(cfg: dict, max_docs: int = 0):
 
 def download_indiccorp(cfg: dict, max_docs: int = 0):
     """Download Tamil split from IndicCorp via HuggingFace datasets."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "indiccorp_ta.txt"
 
@@ -457,13 +453,7 @@ def download_indiccorp(cfg: dict, max_docs: int = 0):
     log.info(f"Downloading IndicCorp Tamil ({ic_cfg['dataset']})...")
 
     try:
-        ds = load_dataset(
-            ic_cfg["dataset"],
-            ic_cfg["language"],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(ic_cfg["dataset"], ic_cfg["language"])
 
         def doc_iter():
             for sample in ds:
@@ -475,7 +465,6 @@ def download_indiccorp(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"IndicCorp download failed: {e}")
-        log.info("  Skipping. Place file manually in data/raw/indiccorp_ta.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -484,12 +473,6 @@ def download_indiccorp(cfg: dict, max_docs: int = 0):
 
 def download_cc100(cfg: dict, max_docs: int = 0):
     """Download Tamil split from CC-100 (Facebook's cleaned CommonCrawl)."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "cc100_ta.txt"
 
@@ -502,13 +485,7 @@ def download_cc100(cfg: dict, max_docs: int = 0):
     log.info(f"Downloading CC-100 Tamil ({cc_cfg['dataset']})...")
 
     try:
-        ds = load_dataset(
-            cc_cfg["dataset"],
-            lang=cc_cfg["language"],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(cc_cfg["dataset"], lang=cc_cfg["language"])
 
         def doc_iter():
             for sample in ds:
@@ -520,7 +497,6 @@ def download_cc100(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"CC-100 download failed: {e}")
-        log.info("  Skipping. Place file manually in data/raw/cc100_ta.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -529,12 +505,6 @@ def download_cc100(cfg: dict, max_docs: int = 0):
 
 def download_samanantar(cfg: dict, max_docs: int = 0):
     """Download Tamil side from Samanantar parallel corpus."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "samanantar_ta.txt"
 
@@ -547,13 +517,7 @@ def download_samanantar(cfg: dict, max_docs: int = 0):
     log.info(f"Downloading Samanantar Tamil ({sam_cfg['dataset']})...")
 
     try:
-        ds = load_dataset(
-            sam_cfg["dataset"],
-            sam_cfg["language"],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(sam_cfg["dataset"], sam_cfg["language"])
 
         def doc_iter():
             for sample in ds:
@@ -566,7 +530,6 @@ def download_samanantar(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"Samanantar download failed: {e}")
-        log.info("  Skipping. Place file manually in data/raw/samanantar_ta.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -575,12 +538,6 @@ def download_samanantar(cfg: dict, max_docs: int = 0):
 
 def download_mc4(cfg: dict, max_docs: int = 0):
     """Download Tamil split from mC4 (Google's multilingual C4)."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        log.error("Install datasets: pip install datasets")
-        return
-
     raw_dir = Path(cfg["corpus"]["raw_dir"])
     txt_path = raw_dir / "mc4_ta.txt"
 
@@ -593,13 +550,7 @@ def download_mc4(cfg: dict, max_docs: int = 0):
     log.info(f"Downloading mC4 Tamil ({mc4_cfg['dataset']})...")
 
     try:
-        ds = load_dataset(
-            mc4_cfg["dataset"],
-            languages=[mc4_cfg["language"]],
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
-        )
+        ds = robust_load_dataset(mc4_cfg["dataset"], languages=[mc4_cfg["language"]])
 
         def doc_iter():
             for sample in ds:
@@ -611,7 +562,6 @@ def download_mc4(cfg: dict, max_docs: int = 0):
 
     except Exception as e:
         log.warning(f"mC4 download failed: {e}")
-        log.info("  Skipping. Place file manually in data/raw/mc4_ta.txt")
 
 
 # ---------------------------------------------------------------------------

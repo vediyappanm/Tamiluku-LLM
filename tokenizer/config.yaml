@@ -31,7 +31,7 @@ corpus:
       enabled: true
 
     indiccorp:
-      dataset: "ai4bharat/IndicCorpus"
+      dataset: "ai4bharat/indic-corp-v2"
       language: "ta"
       enabled: true
 
@@ -46,7 +46,7 @@ corpus:
       enabled: false  # Enable if you need parallel corpus data
 
     mc4:
-      dataset: "mc4"
+      dataset: "google-t5/multilingual-t5-c4"
       language: "ta"
       enabled: true
 
