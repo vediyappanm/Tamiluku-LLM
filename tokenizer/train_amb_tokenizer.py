@@ -188,12 +188,43 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     segmented_corpus_path = corpus_path.with_suffix(".segmented.tmp")
     
     if not segmented_corpus_path.exists():
-        log.info(f"Pre-segmenting corpus to {segmented_corpus_path}...")
-        iterator = AMBCorpusIterator(corpus_path)
-        with open(segmented_corpus_path, "w", encoding="utf-8") as f_out:
-            for batch in tqdm(iterator, desc="Segmenting"):
-                for line in batch:
-                    f_out.write(line + "\n")
+        log.info(f"Pre-segmenting corpus in PARALLEL to {segmented_corpus_path}...")
+        
+        from concurrent.futures import ProcessPoolExecutor
+        cpu_count = os.cpu_count() or 4
+        
+        # Helper to process a single line (must be top-level for pickling)
+        def segment_line(line):
+            # Normalizer (Layer 1)
+            from tamil_unicode import TamilDeepNormalizer
+            from morpheme import MorphemeSegmenter
+            
+            norm = TamilDeepNormalizer()
+            mseg = MorphemeSegmenter()
+            
+            line = line.strip()
+            if not line: return None
+            cleaned = norm.normalize(line)
+            words = cleaned.split()
+            seg_words = [mseg.segment_word(w).replace(" ", " @@ ") for w in words]
+            return " ".join(seg_words)
+
+        # Re-defining within the main train flow for context
+        with open(str(corpus_path), "r", encoding="utf-8") as f_in, \
+             open(str(segmented_corpus_path), "w", encoding="utf-8") as f_out:
+            
+            # Read all lines
+            lines = f_in.readlines()
+            
+            log.info(f"Dispatching {len(lines):,} lines to {cpu_count} workers...")
+            with ProcessPoolExecutor(max_workers=cpu_count) as executor:
+                # Process in large chunks for efficiency
+                results = list(tqdm(executor.map(segment_line, lines, chunksize=500), 
+                                   total=len(lines), desc="Parallel Segmenting"))
+            
+            for res in results:
+                if res:
+                    f_out.write(res + "\n")
     else:
         log.info(f"Using existing segmented corpus: {segmented_corpus_path}")
 
