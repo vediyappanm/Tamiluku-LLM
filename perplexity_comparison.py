@@ -305,7 +305,7 @@ def main():
     parser.add_argument("--num-heads", type=int, default=4)
     parser.add_argument("--intermediate-size", type=int, default=512)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", choices=["auto", "cpu"], default="auto")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--max-train-lines", type=int, default=None)
     parser.add_argument("--max-eval-lines", type=int, default=None)
     parser.add_argument("--unigram-max-tokens", type=int, default=1_000_000)
