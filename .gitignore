@@ -1,0 +1,25 @@
+# Data & Models
+tokenizer/data/
+tokenizer/models/
+tokenizer/reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Large Files
+*.xml
+*.bz2
+*.txt
+!tokenizer/requirements.txt
+!README.md
+
+# OS/IDEs
+.vscode/
+.idea/
+.DS_Store
+.claude/
+.gemini/

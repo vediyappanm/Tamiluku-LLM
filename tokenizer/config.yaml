@@ -1,0 +1,150 @@
+# Tamil Tokenizer Pipeline Configuration — Production Grade
+# ============================================================
+# Target: GPT-4-class tokenizer quality for Tamil language
+#
+# Pipeline: collect -> normalize -> train -> evaluate -> merge -> resize
+
+project:
+  name: "Tamiluku-LLM-Tokenizer"
+  version: "2.0.0"
+
+# --- Corpus Collection ---
+corpus:
+  raw_dir: "data/raw"
+  cleaned_dir: "data/cleaned"
+  eval_dir: "data/eval"
+  output_file: "data/cleaned/tamil_corpus.txt"
+
+  sources:
+    wikipedia:
+      url: "https://dumps.wikimedia.org/tawiki/latest/tawiki-latest-pages-articles.xml.bz2"
+      enabled: true
+
+    culturax:
+      dataset: "uonlp/CulturaX"
+      language: "ta"
+      enabled: true
+
+    oscar:
+      dataset: "oscar-corpus/OSCAR-2301"
+      language: "ta"
+      enabled: true
+
+    indiccorp:
+      dataset: "ai4bharat/IndicCorpus"
+      language: "ta"
+      enabled: true
+
+    cc100:
+      dataset: "cc100"
+      language: "ta"
+      enabled: true
+
+    samanantar:
+      dataset: "ai4bharat/samanantar"
+      language: "ta"
+      enabled: false  # Enable if you need parallel corpus data
+
+    mc4:
+      dataset: "mc4"
+      language: "ta"
+      enabled: true
+
+# --- Text Normalization ---
+normalize:
+  unicode_form: "NFC"
+  min_doc_chars: 50
+  max_doc_chars: 100000
+  dedup_threshold: 0.8
+  dedup_num_perm: 128
+  fasttext_model: "lid.176.bin"
+  fasttext_confidence: 0.7
+  code_mix_english_max_ratio: 0.30
+  eval_holdout_ratio: 0.02
+
+# --- Tokenizer Training (AMB Architecture - RECOMMENDED) ---
+tokenizer:
+  engine: "amb"                      # "amb", "huggingface", or "sentencepiece"
+  vocab_size: 48000                  # 48K covers all Tamil syllables + morpheme combos
+  min_frequency: 2                   # Minimum token frequency
+  output_dir: "models/amb_tokenizer"
+  batch_size: 1000                   # Lines per batch for streaming training
+
+  special_tokens:
+    - "<|endoftext|>"
+    - "<|padding|>"
+    - "<|im_start|>"
+    - "<|im_end|>"
+    - "<|begin_of_text|>"
+    - "<|end_of_text|>"
+
+  # AMB Specific Settings
+  amb:
+    strip_urls: true
+    strip_emails: true
+    normalize_numerals: "preserve"   # "preserve", "arabic", "tamil"
+    preserve_grantha: true
+    
+# --- HuggingFace BPE (Standard) ---
+huggingface:
+  output_dir: "models/hf_tokenizer"
+  vocab_size: 48000
+
+# --- SentencePiece Training (Legacy, for compatibility) ---
+sentencepiece:
+  model_prefix: "models/tamil_bpe_48k"
+  model_type: "bpe"
+  vocab_size: 48000
+  character_coverage: 0.9999
+  byte_fallback: true
+  split_by_unicode_script: true
+  split_by_whitespace: true
+  normalization_rule_name: "identity"
+  num_threads: 16
+  input_sentence_size: 10000000
+  max_sentence_length: 4096
+  shuffle_input_sentence: true
+  seed_sentencepiece_size: 1000000
+
+  user_defined_symbols:
+    - "{{im_start}}"
+    - "{{im_end}}"
+    - "{{system}}"
+    - "{{pad}}"
+
+  control_symbols:
+    - "{{bos}}"
+    - "{{eos}}"
+
+# --- Vocabulary Merging ---
+merge:
+  base_model: "Qwen/Qwen2.5-0.5B"   # Change to desired base: meta-llama/Llama-3-8B, etc.
+  output_dir: "models/merged_tokenizer"
+  skip_byte_fallback_tokens: true
+  skip_duplicates: true
+
+# --- Embedding Initialization ---
+embeddings:
+  init_strategy: "wechsel"           # "wechsel" (recommended), "mean", "random"
+  noise_std: 0.02
+  torch_dtype: "float16"             # "float16", "bfloat16", "float32"
+  output_dir: "models/resized_model"
+
+# --- Evaluation ---
+evaluation:
+  test_dir: "data/eval"
+  report_path: "reports/eval_report.json"
+  targets:
+    max_fertility: 1.5               # Tokens per word (lower = better)
+    min_compression_ratio: 4.0       # Bytes per token (higher = better)
+    roundtrip_accuracy: 1.0          # Must be 100%
+    min_tamil_coverage: 0.95         # Tamil syllable coverage
+    min_morpheme_boundary_acc: 0.70  # Morpheme alignment accuracy
+    max_cross_script_leakage: 0      # Must be zero
+
+  # Optional: tokenizers to compare against
+  compare_tokenizers:
+    - "tiktoken"                     # GPT-4 tokenizer
+    # - "meta-llama/Llama-3-8B"
+    # - "google/gemma-2-9b"
+    # - "Qwen/Qwen2.5-7B"

@@ -1,0 +1,111 @@
+corpus:
+  cleaned_dir: data/cleaned
+  eval_dir: data/eval
+  output_file: data/cleaned/pilot_mini.txt
+  raw_dir: data/raw
+  sources:
+    cc100:
+      dataset: cc100
+      enabled: true
+      language: ta
+    culturax:
+      dataset: uonlp/CulturaX
+      enabled: true
+      language: ta
+    indiccorp:
+      dataset: ai4bharat/IndicCorpus
+      enabled: true
+      language: ta
+    mc4:
+      dataset: mc4
+      enabled: true
+      language: ta
+    oscar:
+      dataset: oscar-corpus/OSCAR-2301
+      enabled: true
+      language: ta
+    samanantar:
+      dataset: ai4bharat/samanantar
+      enabled: false
+      language: ta
+    wikipedia:
+      enabled: true
+      url: https://dumps.wikimedia.org/tawiki/latest/tawiki-latest-pages-articles.xml.bz2
+embeddings:
+  init_strategy: wechsel
+  noise_std: 0.02
+  output_dir: models/resized_model
+  torch_dtype: float16
+evaluation:
+  compare_tokenizers:
+  - tiktoken
+  report_path: reports/eval_report.json
+  targets:
+    max_cross_script_leakage: 0
+    max_fertility: 1.5
+    min_compression_ratio: 4.0
+    min_morpheme_boundary_acc: 0.7
+    min_tamil_coverage: 0.95
+    roundtrip_accuracy: 1.0
+  test_dir: data/eval
+huggingface:
+  output_dir: models/hf_tokenizer
+  vocab_size: 48000
+merge:
+  base_model: Qwen/Qwen2.5-0.5B
+  output_dir: models/merged_tokenizer
+  skip_byte_fallback_tokens: true
+  skip_duplicates: true
+normalize:
+  code_mix_english_max_ratio: 0.3
+  dedup_num_perm: 128
+  dedup_threshold: 0.8
+  eval_holdout_ratio: 0.02
+  fasttext_confidence: 0.7
+  fasttext_model: lid.176.bin
+  max_doc_chars: 100000
+  min_doc_chars: 50
+  unicode_form: NFC
+project:
+  name: Tamiluku-LLM-Tokenizer
+  version: 2.0.0
+sentencepiece:
+  byte_fallback: true
+  character_coverage: 0.9999
+  control_symbols:
+  - '{{bos}}'
+  - '{{eos}}'
+  input_sentence_size: 10000000
+  max_sentence_length: 4096
+  model_prefix: models/tamil_bpe_48k
+  model_type: bpe
+  normalization_rule_name: identity
+  num_threads: 16
+  seed_sentencepiece_size: 1000000
+  shuffle_input_sentence: true
+  split_by_unicode_script: true
+  split_by_whitespace: true
+  user_defined_symbols:
+  - '{{im_start}}'
+  - '{{im_end}}'
+  - '{{system}}'
+  - '{{pad}}'
+  vocab_size: 48000
+tokenizer:
+  amb:
+    normalize_numerals: preserve
+    preserve_grantha: true
+    strip_emails: true
+    strip_urls: true
+  batch_size: 1000
+  engine: amb
+  min_frequency: 2
+  output_dir: models/amb_tokenizer
+  special_tokens:
+  - <|endoftext|>
+  - <|padding|>
+  - <|im_start|>
+  - <|im_end|>
+  - <|begin_of_text|>
+  - <|end_of_text|>
+  vocab_size: 16000

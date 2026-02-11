@@ -1,0 +1,28 @@
+# Tamil Tokenizer Pipeline — Production Dependencies
+# ====================================================
+
+# Core tokenizer libraries
+tokenizers>=0.19.0            # HuggingFace tokenizers (byte-level BPE)
+sentencepiece>=0.2.0          # SentencePiece (legacy mode)
+transformers>=4.40.0          # HuggingFace transformers
+torch>=2.2.0                  # PyTorch (for embeddings)
+
+# Data collection & processing
+datasets>=2.18.0              # HuggingFace datasets (OSCAR, IndicCorp, etc.)
+mwparserfromhell>=0.6.6       # MediaWiki XML parsing
+bz2file>=0.98                 # BZ2 decompression for Wikipedia dumps
+
+# Text normalization
+regex>=2024.4.16              # Advanced regex for Tamil pre-tokenization
+fasttext-wheel>=0.9.2         # Language identification (176 languages)
+datasketch>=1.6.0             # MinHash LSH deduplication
+
+# Evaluation & comparison
+tiktoken>=0.7.0               # GPT-4 tokenizer (for comparison benchmarks)
+
+# Utilities
+numpy>=1.26.0                 # Numerical computing
+pandas>=2.2.0                 # Data analysis
+matplotlib>=3.8.0             # Visualization
+tqdm>=4.66.0                  # Progress bars
+pyyaml>=6.0.1                 # YAML config parsing
