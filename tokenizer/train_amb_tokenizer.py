@@ -190,19 +190,22 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     # We apply NFC here as a safeguard, even though iterator does deep norm
     tokenizer.normalizer = normalizers.NFC()
     
-    # Strict Script Isolation Regex
-    # 1. Tamil: Vowels, or Consonants with modifiers.
-    # 2. English: Latin character sequences.
-    # 3. Numeric: Integer sequences.
-    # 4. Special: Punctuation and others.
-    TAMIL_UNIT = r"[\u0B85-\u0B94]|[\u0B95-\u0BB9][\u0BCD\u0B95-\u0BB9]*[\u0BBE-\u0BCD\u0BD7]?"
-    AKSHARA_REGEX = rf"({TAMIL_UNIT}|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+)"
+    # Optimized Pre-tokenizer for Memory Efficiency
+    # Instead of splitting every syllable (which OOMs on Kaggle),
+    # we ONLY split at the boundaries we want to protect:
+    # 1. Morpheme boundaries (@@)
+    # 2. Word boundaries (spaces)
+    # 3. Script boundaries (Tamil vs English vs Numbers)
+    
+    # This regex isolates scripts but DOES NOT shred Tamil words into characters
+    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
     
     tokenizer.pre_tokenizer = Sequence([
-        # Force split at morpheme boundary markers first
+        # 1. Protect Morpheme Boundaries
         Split(pattern=" @@ ", behavior="isolated"),
-        # Force split by script/unit (No merging across Tamil-English boundary)
-        Split(pattern=AKSHARA_REGEX, behavior="isolated"),
+        # 2. Protect Word/Script Boundaries
+        Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
+        # 3. Convert to bytes for BPE
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
     ])
 
