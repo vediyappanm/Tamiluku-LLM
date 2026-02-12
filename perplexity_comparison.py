@@ -362,11 +362,11 @@ def main():
         return "/" in s or "\\" in s or s.endswith(".json") or Path(s).exists()
 
     if is_local_path(amb_tok_str):
-        if not amb_tok_path.exists():
+        if not Path(amb_tok_str).exists():
              raise FileNotFoundError(f"Missing required AMB tokenizer file: {amb_tok_path}")
 
     if is_local_path(base_tok_str):
-        if not base_tok_path.exists():
+        if not Path(base_tok_str).exists():
              # If it's a simple name like 'gpt2', it's NOT a local path. 
              # Only error if it specifically looks like a path but is missing.
              if "/" in base_tok_str or "\\" in base_tok_str or base_tok_str.endswith(".json"):
