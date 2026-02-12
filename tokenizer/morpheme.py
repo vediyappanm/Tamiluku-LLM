@@ -214,7 +214,9 @@ class MorphemeSegmenter:
             return " ".join(segments)
             
         # Fallback: Iterative suffix stripping (Rule-Based)
-        # This is a rigorous but safe approximation.
+        # 1. Strip suffixes from right-to-left
+        # 2. Handle Sandhi (grammatical junctions)
+        # 3. Validation to prevent over-stemming
         
         current = word
         segments = []
@@ -237,38 +239,51 @@ class MorphemeSegmenter:
 
             if suffix:
                 
+<<<<<<< HEAD
                 # Safety check: don't strip if stem becomes too short (<4 chars)
                 stem_len = len(current) - len(suffix)
                 if stem_len < self.min_stem_len:
+=======
+                # Safety check: don't strip if stem becomes too short (<2 chars)
+                # Exception: specific short roots if known, but generally 2 is safe
+                stem_candidate = current[:match.start()]
+                
+                if len(stem_candidate) < 2:
+>>>>>>> c25ce88512efbe7542bd955cdc129498e67b2035
                     break
                     
                 # We found a suffix!
-                # 1. Add it to our list (at the front, since we're going backwards)
+                # 1. Add it to our list (at the front)
                 segments.insert(0, suffix)
                 
                 # 2. Update 'current' to be the stem
+<<<<<<< HEAD
                 current = current[:boundary]
+=======
+                current = stem_candidate
+>>>>>>> c25ce88512efbe7542bd955cdc129498e67b2035
                 
-                # 3. Handle Sandhi (joining characters)
-                if len(current) > 2:
-                    for s in SANDHI:
-                        if current.endswith(s):
-                            segments.insert(0, s)
-                            current = current[:-len(s)]
-                            break
+                # 3. Handle Sandhi (Consonant Doubling)
+                # In Tamil, suffixes starting with vowels often double the previous consonant
+                # or inject a glide (y/v).
+                # ex: மர + த்து (atthu) -> மரத்து
+                # ex: பூ + கள் -> பூக்கள் (k doubled)
+                
+                # Check for Sandhi consonants: க், ச், த், ப் at the end of the NEW stem
+                for s in SANDHI:
+                    if current.endswith(s):
+                        # Heuristic: Only strip sandhi if the PREVIOUS char is a vowel
+                        # or it looks like a valid junction. 
+                        # This prevents stripping root-final consonants.
+                        # For now, we strip clearly identified sandhi.
+                        segments.insert(0, s)
+                        current = current[:-len(s)]
+                        break
             else:
                 break
                 
         # Add the remaining stem
         segments.insert(0, current)
-        
-        # Post-processing: Check for plurals inside the stem?
-        # The loop *should* have caught 'கள்' if it was at the end of the new stem.
-        # Example: "வீடுகளிலிருந்து"
-        # 1. Match 'இலிருந்து' -> stem 'வீடுகள்', segments ['இலிருந்து']
-        # 2. Loop again on 'வீடுகள்'. Match 'கள்' -> stem 'வீடு', segments ['கள்', 'இலிருந்து']
-        # 3. Loop on 'வீடு'. No match.
-        # Result: "வீடு கள் இலிருந்து"
         
         return " ".join(segments)
 

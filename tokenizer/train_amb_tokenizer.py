@@ -228,12 +228,13 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     tokenizer.normalizer = normalizers.NFC()
     
     # Optimized Pre-tokenizer for Memory Efficiency
+    # Strict Script Isolation: Prevents merges between Tamil, Latin, and Digits.
     SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
     
     tokenizer.pre_tokenizer = Sequence([
         Split(pattern=" @@ ", behavior="isolated"),
         Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
-        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
+        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
 
     # --- PHASE 3: Training ---
