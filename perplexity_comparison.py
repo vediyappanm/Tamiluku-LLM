@@ -26,6 +26,8 @@ import yaml
 import torch
 from datasets import load_dataset
 from transformers import (
+    AutoTokenizer,
+    AutoModelForMaskedLM,
     BertConfig,
     BertForMaskedLM,
     DataCollatorForLanguageModeling,
@@ -344,14 +346,28 @@ def main():
     train_path = args.train_file or str(resolve_path(base_dir, cfg["corpus"]["output_file"]))
     eval_path = args.eval_file or str(resolve_path(base_dir, cfg["corpus"]["eval_dir"]) / "eval_corpus.txt")
 
-    amb_tok_path = Path(amb_tok_path)
-    base_tok_path = Path(base_tok_path)
-    train_path = Path(train_path)
-    eval_path = Path(eval_path)
+    amb_tok_str = str(amb_tok_path)
+    base_tok_str = str(base_tok_path)
 
-    for p in [amb_tok_path, base_tok_path, train_path, eval_path]:
+    # Check data files
+    for p in [train_path, eval_path]:
         if not p.exists():
-            raise FileNotFoundError(f"Missing required file: {p}")
+            raise FileNotFoundError(f"Missing required data file: {p}")
+
+    # Check tokenizers (only if they look like local paths)
+    def is_local_path(s):
+        return "/" in s or "\\" in s or s.endswith(".json") or Path(s).exists()
+
+    if is_local_path(amb_tok_str):
+        if not amb_tok_path.exists():
+             raise FileNotFoundError(f"Missing required AMB tokenizer file: {amb_tok_path}")
+
+    if is_local_path(base_tok_str):
+        if not base_tok_path.exists():
+             # If it's a simple name like 'gpt2', it's NOT a local path. 
+             # Only error if it specifically looks like a path but is missing.
+             if "/" in base_tok_str or "\\" in base_tok_str or base_tok_str.endswith(".json"):
+                 raise FileNotFoundError(f"Missing required Baseline tokenizer file: {base_tok_path}")
 
     if args.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -367,8 +383,16 @@ def main():
     print(f"Eval file:  {eval_path}")
 
     print("\nLoading tokenizers...")
-    amb_tokenizer = ensure_special_tokens(PreTrainedTokenizerFast(tokenizer_file=str(amb_tok_path)))
-    base_tokenizer = ensure_special_tokens(PreTrainedTokenizerFast(tokenizer_file=str(base_tok_path)))
+    # Use AutoTokenizer to support both local files and HF HUB IDs
+    def load_tok(p):
+        path_str = str(p)
+        if path_str.endswith(".json") and Path(path_str).exists():
+            # If it's a direct path to a tokenizer.json, we can use PreTrainedTokenizerFast
+            return PreTrainedTokenizerFast(tokenizer_file=path_str)
+        return AutoTokenizer.from_pretrained(path_str, trust_remote_code=True)
+
+    amb_tokenizer = ensure_special_tokens(load_tok(amb_tok_path))
+    base_tokenizer = ensure_special_tokens(load_tok(base_tok_path))
 
     print("\nBuilding datasets (AMB)...")
     amb_train, amb_eval = build_tokenized_datasets(
