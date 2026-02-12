@@ -434,6 +434,42 @@ class TokenizerEvaluator:
         pieces = [self._clean_piece(p) for p in self.tok.decode_pieces(ids)]
         return [p for p in pieces if p]
 
+    def measure_linguistic_integrity(self, texts: List[str]) -> Dict:
+        """
+        Research Metric: Grapheme Shredding Frequency (GSF).
+        Checks if tokens start with invalid characters (combining marks).
+        """
+        shredded_count = 0
+        total_tokens = 0
+        samples = []
+        
+        # Sample 5000 lines for efficiency
+        subset = texts[:5000]
+        
+        for text in subset:
+            # We want raw strings to check for leading combining marks
+            tokens = self.tok.tokenizer.encode(text).tokens
+            total_tokens += len(tokens)
+            for t in tokens:
+                # Remove ByteLevel prefix if exists (usually 'Ġ')
+                clean_t = t.lstrip('Ġ') 
+                if not clean_t: continue
+                
+                # Check if the first character is a combining mark (Mn or Mc)
+                if unicodedata.category(clean_t[0]) in ("Mn", "Mc"):
+                    shredded_count += 1
+                    if len(samples) < 10:
+                        samples.append(t)
+
+        gsf = (shredded_count / total_tokens) * 100 if total_tokens > 0 else 0
+        
+        return {
+            "grapheme_shredding_frequency": f"{gsf:.4f}%",
+            "shredded_token_count": shredded_count,
+            "integrity_status": "PASS" if gsf < 0.01 else "FAIL",
+            "shredding_samples": samples
+        }
+
     def measure_fertility(self, texts: List[str]) -> Dict:
         """Fertility = average tokens per word. Target: <= 1.5."""
         total_words = 0
@@ -637,13 +673,17 @@ class TokenizerEvaluator:
         report["morpheme_boundaries"] = self.measure_morpheme_boundary_accuracy()
 
         log.info("  [6/8] Detecting cross-script leakage...")
+        log.info("  [6/9] Detecting cross-script leakage...")
         report["cross_script"] = self.measure_cross_script_leakage()
 
-        log.info("  [7/8] Measuring domain-specific fertility...")
+        log.info("  [7/9] Measuring domain-specific fertility...")
         report["domain_fertility"] = self.measure_domain_fertility()
 
-        log.info("  [8/8] Computing token length distribution...")
+        log.info("  [8/9] Computing token length distribution...")
         report["token_length_distribution"] = self._token_length_dist(texts)
+
+        log.info("  [9/9] Performing Linguistic Integrity Audit...")
+        report["linguistic_integrity"] = self.measure_linguistic_integrity(texts)
 
         return report
 
@@ -908,6 +948,7 @@ def main():
     print(f"  Tamil coverage:      {report['tamil_coverage']['tamil_syllable_coverage']:.2%} (target: >={targets['min_tamil_coverage']:.0%})")
     print(f"  Morpheme boundary:   {report['morpheme_boundaries']['morpheme_boundary_accuracy']:.2%} (target: >={targets['min_morpheme_boundary_acc']:.0%})")
     print(f"  Cross-script leak:   {report['cross_script']['cross_script_leakage_count']} (target: {targets['max_cross_script_leakage']})")
+    print(f"  Linguistic Integrity: {report['linguistic_integrity']['integrity_status']} (GSF: {report['linguistic_integrity']['grapheme_shredding_frequency']})")
     print(f"  Avg token length:    {report['token_length_distribution']['avg_token_length_chars']:.1f} chars")
     print(f"")
     print(f"  Domain fertility:")
