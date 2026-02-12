@@ -187,7 +187,8 @@ def main():
     
     corpus_path = Path(args.corpus)
     if not corpus_path.exists():
-        log.error("Corpus not found!")
+        log.error(f"Corpus not found at: {corpus_path.absolute()}")
+        log.error("Please ensure the path is correct (e.g., /kaggle/input/tamil-corpus-txt/tamil_corpus.txt)")
         sys.exit(1)
         
     # 1. Auto-Size or Manual Override

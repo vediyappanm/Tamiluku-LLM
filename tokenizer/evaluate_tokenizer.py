@@ -818,20 +818,29 @@ def run_comparison(our_tokenizer: TokenizerWrapper, compare_ids: List[str]):
 def load_eval_texts(eval_dir: str) -> List[str]:
     texts = []
     eval_path = Path(eval_dir)
-    if not eval_path.exists():
-        log.info(f"Eval directory not found: {eval_dir}. Using internal domain evaluation sentences only.")
-    else:
+    
+    if eval_path.is_file():
+        # Support single file evaluation
+        with open(eval_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            docs = [d.strip() for d in content.split("\n\n") if d.strip()]
+            if not docs:
+                docs = [d.strip() for d in content.split("\n") if d.strip()]
+            texts.extend(docs)
+    elif eval_path.is_dir():
         for txt_file in sorted(eval_path.glob("*.txt")):
             with open(txt_file, "r", encoding="utf-8") as f:
                 content = f.read()
                 docs = [d.strip() for d in content.split("\n\n") if d.strip()]
                 texts.extend(docs)
+    else:
+        log.info(f"Eval path not found: {eval_dir}. Using internal domains only.")
 
     # Add built-in domain eval sentences
     for sentences in DOMAIN_EVAL_SENTENCES.values():
         texts.extend(sentences)
 
-    log.info(f"Loaded {len(texts):,} eval documents (file + built-in domains)")
+    log.info(f"Loaded {len(texts):,} eval documents (file/dir + built-in domains)")
     return texts
 
 
