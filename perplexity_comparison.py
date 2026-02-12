@@ -349,6 +349,9 @@ def main():
     amb_tok_str = str(amb_tok_path)
     base_tok_str = str(base_tok_path)
 
+    train_path = Path(train_path)
+    eval_path = Path(eval_path)
+
     # Check data files
     for p in [train_path, eval_path]:
         if not p.exists():
