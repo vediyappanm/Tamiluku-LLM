@@ -147,17 +147,32 @@ def train_tokenizer(corpus_file, output_dir, vocab_size):
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
     ])
     
+    # 2.5 Generate Tamil Syllables for Vocabulary Pre-population
+    vowels = list("அஆஇஈஉஊஎஏஐஒஓஔ")
+    consonants = list("கஙசஞடணதநபமயரலவழளறன")
+    vowel_signs = ["", "ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ"]
+    
+    tamil_syllables = []
+    tamil_syllables.extend(vowels)
+    for c in consonants:
+        tamil_syllables.append(c + "்") # Pure consonant
+        for vs in vowel_signs:
+            tamil_syllables.append(c + vs)
+    tamil_syllables.append("ஃ")
+    
     # 3. Train
-    # min_frequency=2: Catch every meaningful morpheme
+    # We add the 247 syllables as special tokens to GUARANTEE they are never split.
+    special_tokens = ["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"] + tamil_syllables
+    
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=2, 
         show_progress=True,
-        special_tokens=["<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"],
+        special_tokens=special_tokens,
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet()
     )
     
-    log.info("Starting C++ Trainer... (This may pause at 99% for sorting)")
+    log.info(f"Starting C++ Trainer with {len(tamil_syllables)} pre-populated syllables...")
     tokenizer.train([str(corpus_file)], trainer)
     
     # 3. Save

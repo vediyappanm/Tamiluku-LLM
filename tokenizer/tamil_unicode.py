@@ -337,6 +337,20 @@ class TamilDeepNormalizer:
         text = _RE_MULTI_SPACE.sub(" ", text)
         text = _RE_MULTI_NEWLINE.sub("\n\n", text)
 
+        # Step 12: Physical Script Isolation (Research Fix for Issue #2)
+        # We physically separate Tamil, Latin, and Digits with spaces to prevent cross-script leakage
+        # This is more robust than relying on pre-tokenization regex alone.
+        import re
+        # Separate Tamil sequences
+        text = re.sub(r'([\u0B80-\u0BFF]+)', r' \1 ', text)
+        # Separate Latin sequences
+        text = re.sub(r'([a-zA-Z]+)', r' \1 ', text)
+        # Separate Digit sequences
+        text = re.sub(r'([0-9]+)', r' \1 ', text)
+        
+        # Reclean whitespace after isolation
+        text = _RE_MULTI_SPACE.sub(" ", text)
+
         # Strip each line
         lines = text.split("\n")
         lines = [line.strip() for line in lines]

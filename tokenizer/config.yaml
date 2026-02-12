@@ -65,7 +65,7 @@ normalize:
 # --- Tokenizer Training (AMB Architecture - RECOMMENDED) ---
 tokenizer:
   engine: "amb"                      # "amb", "huggingface", or "sentencepiece"
-  vocab_size: 48000                  # 48K covers all Tamil syllables + morpheme combos
+  vocab_size: 64000                  # Increased from 48K for better morpheme coverage
   min_frequency: 2                   # Minimum token frequency
   output_dir: "models/amb_tokenizer"
   batch_size: 1000                   # Lines per batch for streaming training
@@ -88,13 +88,13 @@ tokenizer:
 # --- HuggingFace BPE (Standard) ---
 huggingface:
   output_dir: "models/hf_tokenizer"
-  vocab_size: 48000
+  vocab_size: 64000  # Increased for better morpheme coverage
 
 # --- SentencePiece Training (Legacy, for compatibility) ---
 sentencepiece:
   model_prefix: "models/tamil_bpe_48k"
   model_type: "bpe"
-  vocab_size: 48000
+  vocab_size: 64000  # Increased for better morpheme coverage
   character_coverage: 0.9999
   byte_fallback: true
   split_by_unicode_script: true

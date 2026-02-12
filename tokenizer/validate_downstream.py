@@ -17,10 +17,18 @@ import random
 from pathlib import Path
 from typing import Iterator, List, Tuple
 
+import yaml
 import torch
 from torch.utils.data import DataLoader, Dataset
-from transformers import GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
-import yaml
+from transformers import (
+    GPT2Config, 
+    GPT2LMHeadModel, 
+    AutoTokenizer, 
+    PreTrainedTokenizerFast,
+    set_seed
+)
+from tqdm import tqdm
+import time
 
 
 def load_config(path: str) -> dict:
@@ -99,19 +107,21 @@ class BlockDataset(Dataset):
         return torch.tensor(self.blocks[idx], dtype=torch.long)
 
 
-def load_tokenizer(path: Path, cfg: dict) -> PreTrainedTokenizerFast:
-    tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(path))
-    specials = cfg.get("tokenizer", {}).get("special_tokens", [])
-    eos = specials[0] if specials else None
-    pad = specials[1] if len(specials) > 1 else None
+def load_tokenizer(path_or_id: str, cfg: dict) -> PreTrainedTokenizerFast:
+    """Load tokenizer from file or HF Hub."""
+    if os.path.exists(path_or_id):
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=path_or_id)
+    else:
+        print(f"Loading tokenizer from HF Hub: {path_or_id}")
+        tokenizer = AutoTokenizer.from_pretrained(path_or_id)
 
-    if eos and tokenizer.eos_token is None and eos in tokenizer.get_vocab():
-        tokenizer.eos_token = eos
-    if pad and tokenizer.pad_token is None and pad in tokenizer.get_vocab():
-        tokenizer.pad_token = pad
-    if tokenizer.pad_token is None and tokenizer.eos_token is not None:
-        tokenizer.pad_token = tokenizer.eos_token
-
+    # Standardize special tokens
+    if tokenizer.pad_token is None:
+        if tokenizer.eos_token:
+            tokenizer.pad_token = tokenizer.eos_token
+        else:
+            tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    
     return tokenizer
 
 
@@ -137,7 +147,11 @@ def train_one(
     batch_size: int,
     lr: float,
 ) -> dict:
-    model = build_model(tokenizer.vocab_size, len(train_blocks[0]))
+    config = build_model(len(tokenizer), len(train_blocks[0])).config
+    model = GPT2LMHeadModel(config)
+    
+    # Critical fix: resize embeddings to match tokenizer exactly
+    model.resize_token_embeddings(len(tokenizer))
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
@@ -148,7 +162,8 @@ def train_one(
         model.train()
         total_loss = 0.0
         steps = 0
-        for batch in train_loader:
+        pbar = tqdm(train_loader, desc=f"[{name}] Epoch {epoch}/{epochs}")
+        for batch in pbar:
             batch = batch.to(device)
             outputs = model(batch, labels=batch)
             loss = outputs.loss
@@ -157,6 +172,7 @@ def train_one(
             optimizer.zero_grad()
             total_loss += loss.item()
             steps += 1
+            pbar.set_postfix(loss=total_loss/steps)
 
         avg_loss = total_loss / max(steps, 1)
         print(f"[{name}] Epoch {epoch}/{epochs} - train loss: {avg_loss:.4f}")
@@ -205,23 +221,24 @@ def main():
     corpus_path = Path(args.train_corpus or cfg["corpus"]["output_file"])
     eval_path = Path(args.eval_corpus or (Path(cfg["corpus"]["eval_dir"]) / "eval_corpus.txt"))
 
-    amb_path = Path(args.amb_tokenizer or (Path(cfg["tokenizer"]["output_dir"]) / "tokenizer.json"))
-    base_path = Path(args.baseline_tokenizer or (Path(cfg["huggingface"]["output_dir"]) / "tokenizer.json"))
+    amb_path = str(args.amb_tokenizer or (Path(cfg["tokenizer"]["output_dir"]) / "tokenizer.json"))
+    base_id = args.baseline_tokenizer or "gpt2" # Default to GPT-2 if no baseline provided
 
     if not corpus_path.exists():
-        raise FileNotFoundError(f"Training corpus not found: {corpus_path}")
+        log.error(f"Training corpus not found: {corpus_path}")
+        sys.exit(1)
     if not eval_path.exists():
-        raise FileNotFoundError(f"Eval corpus not found: {eval_path}")
-    if not amb_path.exists():
-        raise FileNotFoundError(f"AMB tokenizer not found: {amb_path}")
-    if not base_path.exists():
-        raise FileNotFoundError(f"Baseline tokenizer not found: {base_path}")
+        log.error(f"Eval corpus not found: {eval_path}")
+        sys.exit(1)
+    if not os.path.exists(amb_path):
+        log.error(f"AMB tokenizer not found: {amb_path}")
+        sys.exit(1)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
     amb_tok = load_tokenizer(amb_path, cfg)
-    base_tok = load_tokenizer(base_path, cfg)
+    base_tok = load_tokenizer(base_id, cfg)
 
     print(f"AMB vocab size: {amb_tok.vocab_size}")
     print(f"Baseline vocab size: {base_tok.vocab_size}")

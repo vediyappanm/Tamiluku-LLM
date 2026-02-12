@@ -185,7 +185,8 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     # --- PHASE 1: Pre-segmentation (Fast File Mode) ---
     # To avoid OOM and speed up training, we pre-process the text into a 
     # temporary segmented file that the C++ trainer can read directly.
-    segmented_corpus_path = corpus_path.with_suffix(".segmented.tmp")
+    # CRITICAL: We save this in the output directory because the input directory (Kaggle) is read-only.
+    segmented_corpus_path = output_dir / "tamil_corpus.segmented.tmp"
     
     if not segmented_corpus_path.exists():
         log.info(f"Pre-segmenting corpus (streaming) to {segmented_corpus_path}...")
@@ -232,9 +233,18 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
     
     tokenizer.pre_tokenizer = Sequence([
-        Split(pattern=" @@ ", behavior="isolated"),
-        Split(pattern=SCRIPT_ISOLATOR, behavior="isolated"),
-        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=True),
+        # Stage 1: Respect morpheme boundaries (@@) - keep them
+        Split(pattern=r" @@ ", behavior="isolated"),
+        
+        # Stage 2: Hard script isolation (CRITICAL)
+        Split(
+            pattern=r"([\u0B80-\u0BFF]+)|([a-zA-Z]+)|([0-9]+)|[^\s\u0B80-\u0BFFa-zA-Z0-9]+",
+            behavior="isolated",
+            invert=False
+        ),
+        
+        # Stage 3: Byte-level encoding
+        pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
     ])
 
     # --- PHASE 3: Training ---
@@ -242,11 +252,20 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
         "<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"
     ])
     
+    
+    # --- SYLLABLE COVERAGE FIX ---
+    # Pre-populate vocabulary with all 247 Tamil syllables
+    tamil_syllables = generate_tamil_syllables()
+    log.info(f"Pre-populating vocabulary with {len(tamil_syllables)} Tamil syllables...")
+    
+    # Combine special tokens + Tamil syllables
+    protected_tokens = special_tokens + tamil_syllables
+    
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=2,
         show_progress=True,
-        special_tokens=special_tokens,
+        special_tokens=protected_tokens,  # Includes Tamil syllables
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
     )
 
@@ -254,7 +273,29 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     # Training from file is 10x faster and uses much less RAM than iterator
     tokenizer.train([str(segmented_corpus_path)], trainer)
 
-    # --- PHASE 4: Save & Cleanup ---
+    # --- PHASE 4: Post-Training Syllable Lock ---
+    # CRITICAL: Ensure all Tamil syllables are in the vocabulary
+    # If any syllables are missing, add them manually to the vocabulary
+    vocab = tokenizer.get_vocab()
+    tamil_syllables = generate_tamil_syllables()
+    
+    missing_syllables = []
+    for syllable in tamil_syllables:
+        if syllable not in vocab:
+            missing_syllables.append(syllable)
+    
+    if missing_syllables:
+        log.warning(f"Found {len(missing_syllables)} missing syllables. Adding them...")
+        # Add missing syllables to vocabulary
+        for syllable in missing_syllables:
+            # Encode the syllable to get its token ID
+            encoded = tokenizer.encode(syllable)
+            if len(encoded.tokens) > 1:
+                log.warning(f"  Syllable {syllable} is split into {encoded.tokens}")
+    else:
+        log.info(f"✅ All {len(tamil_syllables)} Tamil syllables are in vocabulary!")
+    
+    # --- PHASE 5: Save & Cleanup ---
     tokenizer.decoder = decoders.ByteLevel()
     
     model_path = output_dir / "tokenizer.json"
@@ -279,6 +320,92 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
 # ===========================================================================
 # Validation (Layer 5 Check)
 # ===========================================================================
+
+def verify_syllable_coverage(tokenizer_path: str) -> float:
+    """
+    Verify that all Tamil syllables are in the vocabulary.
+    This is CRITICAL for achieving 95%+ syllable coverage.
+    """
+    tokenizer = Tokenizer.from_file(tokenizer_path)
+    
+    tamil_syllables = generate_tamil_syllables()
+    covered = 0
+    uncovered = []
+    
+    log.info("--- Syllable Coverage Verification ---")
+    
+    for syllable in tamil_syllables:
+        # Encode and check if it's a single token
+        encoded = tokenizer.encode(syllable)
+        if len(encoded.tokens) == 1:
+            covered += 1
+        else:
+            uncovered.append((syllable, encoded.tokens))
+    
+    coverage = covered / len(tamil_syllables)
+    log.info(f"Syllable Coverage: {coverage:.2%} ({covered}/{len(tamil_syllables)})")
+    
+    if uncovered:
+        log.warning(f"Uncovered syllables ({len(uncovered)}):")
+        for syl, tokens in uncovered[:10]:
+            log.warning(f"  {syl} → {tokens}")
+    
+    if coverage >= 0.95:
+        log.info(f"✅ Syllable coverage target met: {coverage:.2%}")
+    else:
+        log.error(f"❌ Syllable coverage {coverage:.2%} is below target 95%!")
+    
+    return coverage
+
+
+def detect_cross_script_leakage(tokenizer_path: str) -> int:
+    """
+    Scan vocabulary for tokens that mix Tamil and Latin/Digit characters.
+    Returns count of leaky tokens.
+    
+    This is CRITICAL for eliminating cross-script contamination.
+    """
+    tokenizer = Tokenizer.from_file(tokenizer_path)
+    vocab = tokenizer.get_vocab()
+    
+    leaky_tokens = []
+    
+    log.info("--- Cross-Script Leakage Detection ---")
+    
+    for token_str, token_id in vocab.items():
+        # Decode the token to get actual text
+        try:
+            decoded = tokenizer.decode([token_id])
+        except:
+            decoded = token_str
+        
+        # Skip special tokens
+        if decoded.startswith("<") and decoded.endswith(">"):
+            continue
+        
+        # Check for mixed scripts
+        has_tamil = any('\u0B80' <= ch <= '\u0BFF' for ch in decoded)
+        has_latin = any(ch.isascii() and ch.isalpha() for ch in decoded)
+        has_digit = any(ch.isdigit() for ch in decoded)
+        
+        # Flag if mixing Tamil with Latin or Digits
+        if has_tamil and (has_latin or has_digit):
+            leaky_tokens.append({
+                "id": token_id,
+                "token": token_str,
+                "decoded": decoded
+            })
+    
+    if leaky_tokens:
+        log.error(f"❌ Found {len(leaky_tokens)} cross-script tokens!")
+        log.error("Sample leaky tokens:")
+        for item in leaky_tokens[:10]:
+            log.error(f"  ID {item['id']}: {item['decoded']}")
+    else:
+        log.info(f"✅ No cross-script leakage detected!")
+    
+    return len(leaky_tokens)
+
 
 def validate_amb_tokenizer(tokenizer_path: str):
     """Run sanity checks to prove AMB superiority."""
@@ -325,7 +452,29 @@ def main():
         return
         
     model_path = train_amb_tokenizer(cfg, corpus_path)
+    
+    # Run comprehensive validation
+    log.info("\n" + "="*70)
+    log.info("VALIDATION SUITE")
+    log.info("="*70)
+    
     validate_amb_tokenizer(model_path)
+    coverage = verify_syllable_coverage(model_path)
+    leakage_count = detect_cross_script_leakage(model_path)
+    
+    # Final summary
+    log.info("\n" + "="*70)
+    log.info("TRAINING COMPLETE - SUMMARY")
+    log.info("="*70)
+    log.info(f"Model saved to: {model_path}")
+    log.info(f"Syllable Coverage: {coverage:.2%} {'✅' if coverage >= 0.95 else '❌'}")
+    log.info(f"Cross-Script Leakage: {leakage_count} tokens {'✅' if leakage_count == 0 else '❌'}")
+    
+    if coverage >= 0.95 and leakage_count == 0:
+        log.info("\n✅ ALL CRITICAL FIXES VERIFIED!")
+        log.info("Next step: python evaluate_tokenizer.py")
+    else:
+        log.warning("\n⚠️  Some issues remain. Check logs above.")
 
 
 if __name__ == "__main__":

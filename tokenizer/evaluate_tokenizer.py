@@ -25,6 +25,8 @@ from typing import List, Dict, Tuple, Optional
 from collections import Counter
 
 import yaml
+import unicodedata
+from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -447,8 +449,8 @@ class TokenizerEvaluator:
         subset = texts[:5000]
         
         for text in subset:
-            # We want raw strings to check for leading combining marks
-            tokens = self.tok.tokenizer.encode(text).tokens
+            # Use the wrapper's encode_tokens which handles individual decoding correctly
+            tokens = self.tok.encode_tokens(text)
             total_tokens += len(tokens)
             for t in tokens:
                 # Remove ByteLevel prefix if exists (usually 'Ġ')
@@ -588,14 +590,18 @@ class TokenizerEvaluator:
                 morpheme_boundaries.add(len(morpheme_text))
                 morpheme_text += m
 
-            if morpheme_boundaries:
-                overlap = len(morpheme_boundaries & token_boundaries)
-                boundary_acc = overlap / len(morpheme_boundaries)
+            # We exclude position 0 (start of word) as it's always trivial
+            meaningful_morpheme_boundaries = morpheme_boundaries - {0}
+            
+            if meaningful_morpheme_boundaries:
+                # How many of the expected linguistic boundaries did our tokens hit?
+                overlap = len(meaningful_morpheme_boundaries & token_boundaries)
+                boundary_acc = overlap / len(meaningful_morpheme_boundaries)
             else:
-                boundary_acc = 0
+                # Atomic words (no splits expected) - accuracy is 1.0 if not split by BPE
+                boundary_acc = 1.0 if len(clean_tokens) == 1 else 0.0
 
-            if boundary_acc >= 0.5:
-                aligned += 1
+            aligned += boundary_acc
 
             results.append({
                 "word": word,
@@ -608,7 +614,6 @@ class TokenizerEvaluator:
         return {
             "morpheme_boundary_accuracy": round(accuracy, 4),
             "total_tested": total,
-            "aligned": aligned,
             "results": results[:30],  # First 30 for report
         }
 

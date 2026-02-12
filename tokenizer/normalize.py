@@ -147,6 +147,37 @@ def compute_english_ratio(text: str) -> float:
     return latin_count / alpha_count
 
 
+def isolate_scripts(text: str) -> str:
+    """
+    Physically separate Tamil, Latin, and digits with whitespace.
+    Prevents BPE from creating cross-script tokens.
+    
+    This is CRITICAL for eliminating cross-script leakage.
+    """
+    result = []
+    prev_script = None
+    
+    for char in text:
+        if '\u0B80' <= char <= '\u0BFF':  # Tamil
+            curr_script = 'tamil'
+        elif char.isascii() and char.isalpha():  # Latin
+            curr_script = 'latin'
+        elif char.isdigit():  # Digits
+            curr_script = 'digit'
+        else:  # Punctuation, whitespace, etc.
+            curr_script = 'other'
+        
+        # Insert space when script changes (except for 'other')
+        if prev_script and curr_script != prev_script and \
+           prev_script != 'other' and curr_script != 'other':
+            result.append(' ')
+        
+        result.append(char)
+        prev_script = curr_script
+    
+    return ''.join(result)
+
+
 # ---------------------------------------------------------------------------
 # Language Identification
 # ---------------------------------------------------------------------------
@@ -273,6 +304,37 @@ class ScalableDeduplicator:
 # Document Processing
 # ---------------------------------------------------------------------------
 
+
+
+def isolate_scripts(text: str) -> str:
+    """
+    Physically separate Tamil, Latin, and digits with whitespace.
+    Prevents BPE from creating cross-script tokens.
+    """
+    result = []
+    prev_script = None
+    
+    for char in text:
+        if '\u0B80' <= char <= '\u0BFF':  # Tamil
+            curr_script = 'tamil'
+        elif char.isascii() and char.isalpha():  # Latin
+            curr_script = 'latin'
+        elif char.isdigit():  # Digits
+            curr_script = 'digit'
+        else:  # Punctuation, whitespace, etc.
+            curr_script = 'other'
+        
+        # Insert space when script changes
+        if prev_script and curr_script != prev_script and \
+           prev_script != 'other' and curr_script != 'other':
+            result.append(' ')
+        
+        result.append(char)
+        prev_script = curr_script
+    
+    return ''.join(result)
+
+
 def process_document(text: str, norm_cfg: dict) -> Optional[str]:
     """
     Process a single document through the normalization pipeline.
@@ -282,8 +344,12 @@ def process_document(text: str, norm_cfg: dict) -> Optional[str]:
     so it does NOT use the language filter (which holds a large model).
     Language filtering is done in the main process.
     """
-    # Unicode normalization
+    # Step 1: Unicode normalization
     text = normalize_tamil_unicode(text)
+
+    # Step 2: Physical Script Isolation (Research Fix for Issue #2)
+    # This physically separates Tamil, Latin, and Digits with whitespace
+    text = isolate_scripts(text)
 
     # Length filter
     if len(text) < norm_cfg.get("min_doc_chars", 20):
