@@ -31,6 +31,7 @@ import re
 import os
 import logging
 import pickle
+import unicodedata
 from typing import List, Tuple, Optional, Set
 from pathlib import Path
 
@@ -125,16 +126,22 @@ SANDHI = ["க்", "ச்", "த்", "ப்"]
 # Regex Compilation
 # ===========================================================================
 
+def get_all_suffixes() -> List[str]:
+    """
+    Return all known suffixes sorted by length (longest first).
+    """
+    all_suffixes = (
+        PLURALS + CASE_MARKERS + CLITICS + VERB_SUFFIXES
+    )
+    return sorted(all_suffixes, key=len, reverse=True)
+
+
 def build_suffix_regex() -> re.Pattern:
     """
     Compile a massive regex to match common suffixes at the END of words.
     Sorted by length (longest first) to ensure greedy matching.
     """
-    all_suffixes = (
-        PLURALS + CASE_MARKERS + CLITICS + VERB_SUFFIXES
-    )
-    # Sort by length descending
-    all_suffixes.sort(key=len, reverse=True)
+    all_suffixes = get_all_suffixes()
     
     # Create group: (கள்|க்கள்|...)
     pattern = "|".join(re.escape(s) for s in all_suffixes)
@@ -144,6 +151,25 @@ def build_suffix_regex() -> re.Pattern:
     return re.compile(full_pattern)
 
 
+def is_combining_mark(ch: str) -> bool:
+    """
+    True if `ch` is a Unicode combining mark.
+    This blocks splits that would detach a vowel sign from its consonant.
+    """
+    return unicodedata.category(ch) in ("Mn", "Mc")
+
+
+def is_invalid_split_boundary(word: str, boundary: int) -> bool:
+    """
+    A split is invalid if the suffix starts with a combining mark.
+    That would separate a vowel sign (or virama) from its base consonant.
+    """
+    if boundary <= 0 or boundary >= len(word):
+        return False
+    return is_combining_mark(word[boundary])
+
+
+ALL_SUFFIXES = get_all_suffixes()
 SUCCESSIVE_SUFFIX_REGEX = build_suffix_regex()
 
 
@@ -159,6 +185,7 @@ class MorphemeSegmenter:
     def __init__(self, model_path: Optional[str] = None):
         self.model = None
         self.use_morfessor = False
+        self.min_stem_len = 4
         
         # Load Morfessor model if provided
         if HAS_MORFESSOR and model_path and os.path.exists(model_path):
@@ -172,6 +199,7 @@ class MorphemeSegmenter:
         
         # Regex fallback
         self.suffix_re = SUCCESSIVE_SUFFIX_REGEX
+        self.suffixes = ALL_SUFFIXES
 
     def segment_word(self, word: str) -> str:
         """
@@ -195,13 +223,23 @@ class MorphemeSegmenter:
         # We loop until no more known suffixes are found at the end
         # Limit to 5 suffixes max to avoid infinite loops or over-stripping
         for _ in range(5):
-            match = self.suffix_re.search(current)
-            if match:
-                suffix = match.group(1)
+            suffix = None
+            boundary = None
+            for cand in self.suffixes:
+                if not current.endswith(cand):
+                    continue
+                boundary = len(current) - len(cand)
+                if is_invalid_split_boundary(current, boundary):
+                    # Don't split between a consonant and its vowel sign.
+                    continue
+                suffix = cand
+                break
+
+            if suffix:
                 
-                # Safety check: don't strip if stem becomes too short (<2 chars)
+                # Safety check: don't strip if stem becomes too short (<4 chars)
                 stem_len = len(current) - len(suffix)
-                if stem_len < 2:
+                if stem_len < self.min_stem_len:
                     break
                     
                 # We found a suffix!
@@ -209,7 +247,7 @@ class MorphemeSegmenter:
                 segments.insert(0, suffix)
                 
                 # 2. Update 'current' to be the stem
-                current = current[:match.start()]
+                current = current[:boundary]
                 
                 # 3. Handle Sandhi (joining characters)
                 if len(current) > 2:

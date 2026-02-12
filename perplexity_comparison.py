@@ -353,10 +353,13 @@ def main():
         if not p.exists():
             raise FileNotFoundError(f"Missing required file: {p}")
 
-    if args.device == "auto" and torch.cuda.is_available():
-        device = "cuda"
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
-        device = "cpu"
+        device = args.device
+        if device == "cuda" and not torch.cuda.is_available():
+            print("WARNING: CUDA requested but not available. Falling back to CPU.")
+            device = "cpu"
     args.device = device
 
     print(f"Device: {args.device}")
