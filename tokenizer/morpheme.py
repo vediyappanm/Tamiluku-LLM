@@ -239,17 +239,9 @@ class MorphemeSegmenter:
 
             if suffix:
                 
-<<<<<<< HEAD
                 # Safety check: don't strip if stem becomes too short (<4 chars)
                 stem_len = len(current) - len(suffix)
                 if stem_len < self.min_stem_len:
-=======
-                # Safety check: don't strip if stem becomes too short (<2 chars)
-                # Exception: specific short roots if known, but generally 2 is safe
-                stem_candidate = current[:match.start()]
-                
-                if len(stem_candidate) < 2:
->>>>>>> c25ce88512efbe7542bd955cdc129498e67b2035
                     break
                     
                 # We found a suffix!
@@ -257,11 +249,7 @@ class MorphemeSegmenter:
                 segments.insert(0, suffix)
                 
                 # 2. Update 'current' to be the stem
-<<<<<<< HEAD
                 current = current[:boundary]
-=======
-                current = stem_candidate
->>>>>>> c25ce88512efbe7542bd955cdc129498e67b2035
                 
                 # 3. Handle Sandhi (Consonant Doubling)
                 # In Tamil, suffixes starting with vowels often double the previous consonant
