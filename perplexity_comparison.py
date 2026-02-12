@@ -188,8 +188,13 @@ def train_and_eval_mlm(
     args,
     output_dir: Path,
 ) -> Tuple[float, float]:
+    # Debug info before model init
+    print(f"\n[{name}] Debug: Vocab size (len): {len(tokenizer)}")
+    print(f"[{name}] Debug: config.vocab_size (internal): {tokenizer.vocab_size}")
+    print(f"[{name}] Debug: Pad token ID: {tokenizer.pad_token_id}")
+
     config = BertConfig(
-        vocab_size=tokenizer.vocab_size,
+        vocab_size=len(tokenizer),
         hidden_size=args.hidden_size,
         num_hidden_layers=args.num_layers,
         num_attention_heads=args.num_heads,

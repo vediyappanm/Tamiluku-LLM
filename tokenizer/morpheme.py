@@ -27,12 +27,10 @@ Usage:
     splits = seg.segment_word("வீடுகளிலிருந்து") 
 """
 
-import re
 import os
 import logging
-import pickle
 import unicodedata
-from typing import List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set
 from pathlib import Path
 
 # Try to import Morfessor, but don't crash if missing
@@ -123,7 +121,7 @@ SANDHI = ["க்", "ச்", "த்", "ப்"]
 
 
 # ===========================================================================
-# Regex Compilation
+# Suffix Helpers
 # ===========================================================================
 
 def get_all_suffixes() -> List[str]:
@@ -136,19 +134,19 @@ def get_all_suffixes() -> List[str]:
     return sorted(all_suffixes, key=len, reverse=True)
 
 
-def build_suffix_regex() -> re.Pattern:
+def group_suffixes_by_last_char(suffixes: List[str]) -> Dict[str, List[str]]:
     """
-    Compile a massive regex to match common suffixes at the END of words.
-    Sorted by length (longest first) to ensure greedy matching.
+    Bucket suffixes by their final character for quicker lookup.
     """
-    all_suffixes = get_all_suffixes()
-    
-    # Create group: (கள்|க்கள்|...)
-    pattern = "|".join(re.escape(s) for s in all_suffixes)
-    
-    # Anchor to end of string ($)
-    full_pattern = f"({pattern})$"
-    return re.compile(full_pattern)
+    buckets: Dict[str, List[str]] = {}
+    for suffix in suffixes:
+        if not suffix:
+            continue
+        tail = suffix[-1]
+        buckets.setdefault(tail, []).append(suffix)
+    for bucket in buckets.values():
+        bucket.sort(key=len, reverse=True)
+    return buckets
 
 
 def is_combining_mark(ch: str) -> bool:
@@ -170,7 +168,7 @@ def is_invalid_split_boundary(word: str, boundary: int) -> bool:
 
 
 ALL_SUFFIXES = get_all_suffixes()
-SUCCESSIVE_SUFFIX_REGEX = build_suffix_regex()
+SUFFIX_BUCKETS = group_suffixes_by_last_char(ALL_SUFFIXES)
 
 
 # ===========================================================================
@@ -197,73 +195,66 @@ class MorphemeSegmenter:
             except Exception as e:
                 log.warning(f"Failed to load Morfessor model: {e}")
         
-        # Regex fallback
-        self.suffix_re = SUCCESSIVE_SUFFIX_REGEX
         self.suffixes = ALL_SUFFIXES
+        self.suffix_buckets = SUFFIX_BUCKETS
 
     def segment_word(self, word: str) -> str:
         """
         Segment a single word into morphemes separated by spaces.
         Example: "வீடுகளிலிருந்து" -> "வீடு கள் இருந்து"
-        
         Returns space-separated string.
         """
-        # If we have a statistical model, prioritize it (it learns rules too)
+        if not word:
+            return ""
+            
+        # If we have a statistical model, prioritize it
         if self.use_morfessor:
             segments = self.model.viterbi_segment(word)[0]
             return " ".join(segments)
             
         # Fallback: Iterative suffix stripping (Rule-Based)
-        # 1. Strip suffixes from right-to-left
-        # 2. Handle Sandhi (grammatical junctions)
-        # 3. Validation to prevent over-stemming
-        
         current = word
         segments = []
         
-        # Peel off suffixes from the right
-        # We loop until no more known suffixes are found at the end
-        # Limit to 5 suffixes max to avoid infinite loops or over-stripping
+        # Peel off suffixes from the right (max 5)
         for _ in range(5):
+            if not current:
+                break
+                
             suffix = None
             boundary = None
-            for cand in self.suffixes:
+            
+            # Use bucket lookup for efficiency
+            last_char = current[-1]
+            candidates = self.suffix_buckets.get(last_char)
+            if not candidates:
+                candidates = self.suffixes
+            
+            for cand in candidates:
                 if not current.endswith(cand):
                     continue
                 boundary = len(current) - len(cand)
+                
+                # Safeguard: Prevent detaching vowel signs
                 if is_invalid_split_boundary(current, boundary):
-                    # Don't split between a consonant and its vowel sign.
                     continue
+                    
                 suffix = cand
                 break
-
-            if suffix:
                 
-                # Safety check: don't strip if stem becomes too short (<4 chars)
+            if suffix:
+                # Safety check: don't strip if stem becomes too short
                 stem_len = len(current) - len(suffix)
                 if stem_len < self.min_stem_len:
                     break
                     
                 # We found a suffix!
-                # 1. Add it to our list (at the front)
                 segments.insert(0, suffix)
-                
-                # 2. Update 'current' to be the stem
                 current = current[:boundary]
                 
-                # 3. Handle Sandhi (Consonant Doubling)
-                # In Tamil, suffixes starting with vowels often double the previous consonant
-                # or inject a glide (y/v).
-                # ex: மர + த்து (atthu) -> மரத்து
-                # ex: பூ + கள் -> பூக்கள் (k doubled)
-                
-                # Check for Sandhi consonants: க், ச், த், ப் at the end of the NEW stem
+                # Handle Sandhi (Consonant Doubling)
                 for s in SANDHI:
                     if current.endswith(s):
-                        # Heuristic: Only strip sandhi if the PREVIOUS char is a vowel
-                        # or it looks like a valid junction. 
-                        # This prevents stripping root-final consonants.
-                        # For now, we strip clearly identified sandhi.
                         segments.insert(0, s)
                         current = current[:-len(s)]
                         break
@@ -271,8 +262,9 @@ class MorphemeSegmenter:
                 break
                 
         # Add the remaining stem
-        segments.insert(0, current)
-        
+        if current:
+            segments.insert(0, current)
+            
         return " ".join(segments)
 
     def train(self, corpus_file: str, save_path: str, vocab_size: int = 50000):
