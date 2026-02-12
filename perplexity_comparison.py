@@ -253,6 +253,13 @@ def train_and_eval_mlm(
     valid_trainer_kwargs = {k: v for k, v in trainer_kwargs.items() if k in trainer_sig.parameters}
     trainer = Trainer(**valid_trainer_kwargs)
 
+    res_file = output_dir / "eval_results.json"
+    if args.resume and res_file.exists():
+        print(f"\n[{name}] Resuming from existing results in {res_file}")
+        with open(res_file, "r") as f:
+            cached = json.load(f)
+        return cached["eval_loss"], cached["perplexity"]
+
     start = time.time()
     trainer.train()
     eval_metrics = trainer.evaluate()
@@ -260,6 +267,10 @@ def train_and_eval_mlm(
 
     eval_loss = float(eval_metrics.get("eval_loss", 0.0))
     perplexity = math.exp(eval_loss) if eval_loss < 20 else float("inf")
+
+    # Save results for resumption
+    with open(res_file, "w") as f:
+        json.dump({"eval_loss": eval_loss, "perplexity": perplexity, "time_min": elapsed/60}, f)
 
     print(f"\n[{name}] Eval loss: {eval_loss:.4f} | PPL: {perplexity:.2f} | Time: {elapsed/60:.1f} min")
     return eval_loss, perplexity
@@ -322,6 +333,7 @@ def main():
     parser.add_argument("--unigram-max-tokens", type=int, default=1_000_000)
     parser.add_argument("--unigram-eval-max-tokens", type=int, default=300_000)
     parser.add_argument("--stats-max-lines", type=int, default=100_000)
+    parser.add_argument("--resume", type=bool, default=True, help="Skip already completed steps")
     args = parser.parse_args()
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
