@@ -252,8 +252,6 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
         "<|endoftext|>", "<|padding|>", "<|im_start|>", "<|im_end|>"
     ])
     
-    
-    # --- SYLLABLE COVERAGE FIX ---
     # Pre-populate vocabulary with all 247 Tamil syllables
     tamil_syllables = generate_tamil_syllables()
     log.info(f"Pre-populating vocabulary with {len(tamil_syllables)} Tamil syllables...")
@@ -261,17 +259,46 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     # Combine special tokens + Tamil syllables
     protected_tokens = special_tokens + tamil_syllables
     
+    # Syllable Coverage Fix: Add syllables to initial alphabet
+    # This ensures Rust trainer sees them as atomic units from the start
+    alphabet = pre_tokenizers.ByteLevel.alphabet()
+    for s in tamil_syllables:
+        for char in s:
+            if char not in alphabet:
+                alphabet.append(char)
+
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         min_frequency=2,
         show_progress=True,
-        special_tokens=protected_tokens,  # Includes Tamil syllables
-        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+        special_tokens=protected_tokens,
+        initial_alphabet=alphabet,
     )
 
     log.info("Starting Native BPE Training (Fast Mode)...")
-    # Training from file is 10x faster and uses much less RAM than iterator
-    tokenizer.train([str(segmented_corpus_path)], trainer)
+    
+    # MEMORY FIX for 8GB RAM:
+    # We only need a representative sample (e.g. 5M lines) to learn BPE merges.
+    # Training on 20GB in 8GB RAM will crash.
+    max_bpe_lines = 5000000
+    bpe_input_file = segmented_corpus_path
+    
+    line_count = 0
+    with open(segmented_corpus_path, "r", encoding="utf-8") as f:
+        for _ in f: line_count += 1
+        
+    if line_count > max_bpe_lines:
+        log.info(f"Corpus is large ({line_count:,} lines). Sampling {max_bpe_lines:,} for BPE counting to save RAM...")
+        bpe_input_file = output_dir / "bpe_sample.tmp"
+        with open(segmented_corpus_path, "r", encoding="utf-8") as f_in, \
+             open(bpe_input_file, "w", encoding="utf-8") as f_out:
+            for i, line in enumerate(f_in):
+                if i >= max_bpe_lines: break
+                f_out.write(line)
+    
+    # Set thread limit for 8GB RAM safety
+    os.environ["RAYON_NUM_THREADS"] = "4"
+    tokenizer.train([str(bpe_input_file)], trainer)
 
     # --- PHASE 4: Post-Training Syllable Lock ---
     # CRITICAL: Ensure all Tamil syllables are in the vocabulary

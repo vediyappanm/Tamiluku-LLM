@@ -142,8 +142,13 @@ def compute_token_stats(
 
     avg_tokens_per_word = total_tokens / max(total_words, 1)
     bytes_per_token = total_bytes / max(total_tokens, 1)
+    chars_per_token = len("".join(tokenizer.tokenize("eval text sample test"))) # Just an estimate helper
+    # Better: total characters in eval / total tokens
+    total_chars = total_bytes # Approx for UTF-8 in high overlap cases, but let's be precise
+    
+    # We'll calculate BPC directly in the final dict using the loss
     bits_per_token = bytes_per_token * 8.0
-    return avg_tokens_per_word, bits_per_token
+    return avg_tokens_per_word, bits_per_token, bytes_per_token
 
 
 def compute_unigram_counts(dataset, max_tokens: int | None) -> Tuple[Counter, int]:
@@ -288,12 +293,15 @@ def print_table(results: Dict[str, Dict[str, float]]):
     amb = results["AMB"]
     base = results["Baseline"]
 
+    amb_bpc = (amb["eval_loss"] * math.log2(math.e)) / (amb["bits_per_token"] / 8.0)
+    base_bpc = (base["eval_loss"] * math.log2(math.e)) / (base["bits_per_token"] / 8.0)
+
     rows = [
-        ("Unigram Perplexity", amb["unigram_ppl"], base["unigram_ppl"], False, ""),
-        ("Neural Perplexity (LM)", amb["neural_ppl"], base["neural_ppl"], False, "PASS"),
-        ("Avg Tokens/Word", amb["tokens_per_word"], base["tokens_per_word"], False, ""),
-        ("Bits/Token (Density)", amb["bits_per_token"], base["bits_per_token"], True, ""),
-        ("Final Eval Loss", amb["eval_loss"], base["eval_loss"], False, ""),
+        ("Avg Tokens/Word", amb["tokens_per_word"], base["tokens_per_word"], False, "EFFICIENCY"),
+        ("Bits/Token (Density)", amb["bits_per_token"], base["bits_per_token"], True, "COMPRESSION"),
+        ("Neural Perplexity (LM)", amb["neural_ppl"], base["neural_ppl"], False, "RAW SURPRISE"),
+        ("Bits Per Character (BPC)", amb_bpc, base_bpc, False, "FINAL SCORE"),
+        ("Perplexity Per Word", math.pow(amb["neural_ppl"], amb["tokens_per_word"]), math.pow(base["neural_ppl"], base["tokens_per_word"]), False, ""),
     ]
 
     print("\nMetric                         AMB             Baseline        Improvement")
@@ -301,7 +309,11 @@ def print_table(results: Dict[str, Dict[str, float]]):
     for metric, amb_val, base_val, higher_better, pass_flag in rows:
         imp = improvement(amb_val, base_val, higher_better)
         suffix = f"  {pass_flag}" if pass_flag else ""
-        print(f"{metric:<30} {amb_val:>10.2f} {base_val:>16.2f} {imp:>14.1f}%{suffix}")
+        if "Perplexity Per Word" in metric:
+             # Too large to print precisely, show scientific notation
+             print(f"{metric:<30} {amb_val:>10.2e} {base_val:>16.2e} {imp:>14.1f}%{suffix}")
+        else:
+             print(f"{metric:<30} {amb_val:>10.2f} {base_val:>16.2f} {imp:>14.1f}%{suffix}")
 
 
 def main():
@@ -437,12 +449,12 @@ def main():
     )
 
     print("\nTokenization efficiency stats (AMB)...")
-    amb_tokens_per_word, amb_bits_per_token = compute_token_stats(
+    amb_tokens_per_word, amb_bits_per_token, amb_bytes_per_tok = compute_token_stats(
         amb_tokenizer, eval_path, args.stats_max_lines
     )
 
     print("Tokenization efficiency stats (Baseline)...")
-    base_tokens_per_word, base_bits_per_token = compute_token_stats(
+    base_tokens_per_word, base_bits_per_token, base_bytes_per_tok = compute_token_stats(
         base_tokenizer, eval_path, args.stats_max_lines
     )
 
