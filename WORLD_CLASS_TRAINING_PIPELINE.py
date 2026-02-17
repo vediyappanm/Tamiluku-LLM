@@ -357,7 +357,29 @@ def run_pipeline(config_path: str, quick_mode: bool = False):
 
     # Determine paths
     base_dir = Path(config_path).parent.parent
-    corpus_path = base_dir / config["corpus"]["input_files"][0]
+    corpus_filename = config["corpus"]["input_files"][0]
+    
+    # Robust Corpus Resolution (Handles Local vs Kaggle)
+    search_paths = [
+        base_dir / corpus_filename,                             # Local root
+        Path(corpus_filename),                                  # Local CWD
+        Path("..") / corpus_filename,                          # Parent directory
+        Path("/kaggle/input/tamil-corpus-txt") / corpus_filename, # Standard Kaggle Input
+        Path("/kaggle/input") / Path(corpus_filename).stem / corpus_filename # Dynamic Kaggle Input
+    ]
+    
+    corpus_path = None
+    for p in search_paths:
+        if p.exists():
+            corpus_path = p
+            break
+            
+    if corpus_path is None:
+        log.error(f"❌ Corpus not found: {corpus_filename}")
+        log.error(f"   Searched in: {[str(p) for p in search_paths]}")
+        return None, None
+
+    log.info(f"📍 Resolved corpus path: {corpus_path}")
     normalized_path = base_dir / config["corpus"]["output_file"]
 
     if quick_mode:
