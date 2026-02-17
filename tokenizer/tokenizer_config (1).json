@@ -1,0 +1,5 @@
+{
+  "model_type": "gpt2",
+  "tokenizer_class": "PreTrainedTokenizerFast",
+  "vocab_size": 48000
+}

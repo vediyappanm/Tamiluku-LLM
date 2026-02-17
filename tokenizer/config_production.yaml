@@ -1,0 +1,186 @@
+# AMB Tokenizer - World-Class Production Configuration
+# Generated: 2026-02-17
+# For: Large-scale Tamil LLM training
+
+corpus:
+  # Primary sources (total: ~20GB Tamil text)
+  input_files:
+    - "tamil_corpus.txt"
+
+  # Output after normalization
+  output_file: "data/cleaned/tamil_corpus_production.txt"
+
+  # Corpus statistics tracking
+  statistics_file: "corpus_statistics.json"
+
+# Normalization settings
+normalization:
+  # Unicode normalization form (NFC = canonical composed)
+  unicode_form: "NFC"
+
+  # Remove zero-width characters and control chars
+  remove_zwj: true
+  remove_zwnj: true
+  remove_bom: true
+
+  # Handle Grantha script (classical Tamil borrowings)
+  preserve_grantha: true
+
+  # URL/Email cleaning
+  strip_urls: true
+  strip_emails: true
+
+  # Handle code-mixing (Tamil + English)
+  # Max English ratio allowed per line
+  max_english_ratio: 0.3  # 30% English max
+
+  # Deduplicate
+  exact_dedup: true
+  near_dedup: true          # Use MinHash LSH
+  lsh_bands: 20
+  lsh_rows: 5
+
+  # Language identification (optional)
+  # Requires fasttext model
+  use_langid: false
+  langid_model: "lid.176.ftz"
+
+# Morpheme segmentation settings
+morpheme:
+  # Use rule-based suffix stripping
+  use_rules: true
+
+  # Use statistical segmenter (Morfessor)
+  use_morfessor: false
+  morfessor_model: null    # Optional path to trained model
+
+  # Min stem length to prevent over-splitting (3 is ideal for Tamil)
+  min_stem_len: 3
+
+  # Max suffix depth (Tamil can handle up to 6-7 levels of markers)
+  max_suffix_depth: 7 
+
+# BPE Tokenizer settings
+tokenizer:
+  # Final vocabulary size (balance: bigger = better coverage, slower training)
+  vocab_size: 64000              # PRODUCTION: Increased from 48K
+
+  # Minimum frequency for a merge operation
+  # High frequency ensures vocab is 'clean' and typo-free
+  min_frequency: 5
+
+  # Output directory
+  output_dir: "models/amb_tokenizer_production"
+
+  # Special tokens (used in LLM)
+  special_tokens:
+    - "<|endoftext|>"
+    - "<|padding|>"
+    - "<|im_start|>"
+    - "<|im_end|>"
+    - "<|user|>"
+    - "<|assistant|>"
+    - "<unk>"
+    - "<pad>"
+
+  # Pre-populate vocabulary with all Tamil syllables?
+  # (CRITICAL FIX: This was missing before)
+  prepopulate_syllables: true
+
+  # Script isolation pattern
+  # Prevents Tamil + Latin merging
+  script_isolation: true
+  script_isolation_pattern: r'(?u)(\d+|\p{L}+|[^\s\w]+)'
+
+# Training optimization
+training:
+  # Number of training steps (BPE merge iterations)
+  # PRODUCTION: Scaled up for better quality
+  steps: 50000              # Increased from 50
+
+  # Batch size for streaming
+  batch_size: 2000
+
+  # Show progress bar
+  show_progress: true
+
+  # Thread limit (safety on shared systems)
+  num_threads: 4            # Limit CPU threads
+
+  # Memory optimization
+  max_bpe_lines: 5000000    # Sample size for BPE counting
+  stream_processing: true
+
+# Evaluation settings
+evaluation:
+  # Size of evaluation corpus
+  eval_corpus_size: 1000     # PRODUCTION: Increased from 30
+
+  # Frequency of evaluation during training
+  eval_frequency: 1000       # Every N steps
+
+  # Test samples for quality check
+  test_words:
+    - "போகவேண்டியிருந்தது"  # Complex agglutination
+    - "அரசியலமைப்பு"        # Compound noun
+    - "வீடுகளிலிருந்து"     # Plural + locative
+    - "கணினிவிஞ்ஞানம்"     # Technical term
+    - "ஆசிரியர்கள்"         # Plural + honorific
+
+# Validation
+validation:
+  # Check syllable coverage after training
+  check_syllable_coverage: true
+  min_syllable_coverage: 0.95   # Target 95%+
+
+  # Check cross-script leakage
+  check_cross_script_leakage: true
+  max_cross_script_tokens: 0    # Target: zero
+
+  # Check roundtrip accuracy
+  check_roundtrip: true
+  min_roundtrip_accuracy: 0.99  # Target 99%+
+
+# Logging
+logging:
+  level: "INFO"              # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s | %(levelname)-7s | %(message)s"
+  log_file: "training.log"
+
+# Reproducibility
+reproducibility:
+  random_seed: 42
+  deterministic: true
+  fixed_seed_for_bpe: 42
+
+# Output format
+export:
+  format: "huggingface"      # Export as HF tokenizer.json
+  include_tokenizer_config: true
+  include_metadata: true
+
+# Metadata
+metadata:
+  name: "AMB-Tamil-Production"
+  description: "Linguistically-grounded BPE tokenizer for Tamil"
+  version: "2.0"
+  created: "2026-02-17"
+  authors: "AI4Bharat"
+  license: "MIT"
+
+  # Training corpus info
+  corpus_sources:
+    - "Wikipedia Tamil"
+    - "Common Crawl (Tamil)"
+    - "News Archives"
+    - "Government Documents"
+
+  corpus_size_gb: 20
+  corpus_lines: "~50M"
+
+  # Key metrics (to be filled after training)
+  metrics:
+    syllable_coverage: null
+    cross_script_leakage: null
+    tokens_per_word: null
+    neural_perplexity: null

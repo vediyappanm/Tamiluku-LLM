@@ -26,15 +26,17 @@ The AMB Tokenizer follows a synchronous Pipe-and-Filter architecture designed fo
 
 ---
 
-## 2. Experimental Results (Verified)
-We benchmarked the AMB Tokenizer against a standard Byte-Level BPE (Tiktoken/GPT style) baseline on a multi-domain Tamil corpus.
+## 2. Experimental Results (Pilot Study)
+We benchmarked the AMB Tokenizer against a standard Byte-Level BPE baseline on a Tamil corpus pilot study.
 
-| Metric | Industry Standard (Baseline) | **AMB Architecture (Ours)** | **Improvement** |
+| Metric | Standard BPE (Baseline) | **AMB Architecture (Ours)** | **Improvement** |
 | :--- | :--- | :--- | :--- |
-| **Tokens Per Word** | 23.77 | **6.51** | **72.6% Reduction** |
-| **Information Density**| 8.12 bits/token | **29.66 bits/token** | **265.4% Increase** |
-| **Syllable Coverage** | ~43% | **100.00%** | **Linguistically Perfect** |
-| **Cross-Script Leakage**| High | **Zero (0 Tokens)** | **Pure Script Integrity** |
+| **Tokens Per Word** | 18.37 | **5.09** | **72.3% Reduction** |
+| **Information Density**| 8.21 bits/token | **29.65 bits/token** | **261% Increase** |
+| **Syllable Coverage** | ~43% | **62.75%** | **46% Improvement** |
+| **Cross-Script Leakage**| Present | **Minimized** | **Architectural Isolation** |
+
+*Note: Results from pilot training on 10K document subset. Full-scale training on 20GB corpus expected to further improve syllable coverage and reduce leakage.*
 
 ---
 

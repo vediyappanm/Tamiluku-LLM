@@ -2,18 +2,26 @@
 tokenizer/data/
 tokenizer/models/
 tokenizer/reports/
+data/
+models/
+reports/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.pyo
+*.pyd
+*.db
+*.ipynb_checkpoints/
 venv/
 .env
 
-# Large Files
+# Large Files & Temp
 *.xml
 *.bz2
 *.txt
+*.tmp
+*.log
 !tokenizer/requirements.txt
 !README.md
 

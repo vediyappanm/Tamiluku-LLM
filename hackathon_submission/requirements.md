@@ -19,9 +19,9 @@ Our AMB (Akshara-Morpheme-BPE) architecture solves these problems through a mult
 3. **Sequence Compression**: Reduces sequence length by **72.6%** compared to industry-standard BPE baselines.
 
 ## 4. Functional Requirements (Verified Results)
-- **Token Efficiency**: Must maintain a fertility rate of ~6.5 tokens per sentence word (down from 23.7), achieving **72.6% sequence compression**.
-- **Linguistic Perfection**: Must achieve **100% Syllable Coverage** within the learned vocabulary.
-- **Script Purity**: Must maintain **Zero Cross-Script Leakage** (no mixed Tamil-English tokens).
+- **Token Efficiency**: Must achieve significant reduction in tokens per word compared to standard BPE baselines, targeting **~72% sequence compression**.
+- **Linguistic Quality**: Must maximize syllable coverage within the learned vocabulary to preserve Tamil script integrity.
+- **Script Separation**: Must minimize cross-script leakage (mixed Tamil-English tokens) through architectural design.
 - **Architecture Compatibility**: Must export to standard `tokenizer.json` for plug-and-play use with HuggingFace Transformers (Llama, Gemma, Mistral).
 
 ## 5. Universal Bharat Scalability

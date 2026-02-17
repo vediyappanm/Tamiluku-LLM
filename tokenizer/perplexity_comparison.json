@@ -1,0 +1,16 @@
+{
+  "AMB": {
+    "unigram_ppl": 73.57379494154691,
+    "neural_ppl": 54.674927421303515,
+    "tokens_per_word": 6.506806006849916,
+    "bits_per_token": 29.660792564051608,
+    "eval_loss": 4.001405239105225
+  },
+  "Baseline": {
+    "unigram_ppl": 11.845141266348977,
+    "neural_ppl": 9.24285854284431,
+    "tokens_per_word": 23.77385584892633,
+    "bits_per_token": 8.118036234850663,
+    "eval_loss": 2.223851203918457
+  }
+}

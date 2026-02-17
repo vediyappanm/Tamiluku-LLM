@@ -225,25 +225,14 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
         log.info(f"Using existing segmented corpus: {segmented_corpus_path}")
 
     # --- PHASE 2: Tokenizer Configuration ---
+    # SIMPLIFIED for Speed: 'isolate_scripts()' runs in Phase 1, so we avoid slow regexes here.
     tokenizer = Tokenizer(models.BPE(unk_token=None))
     tokenizer.normalizer = normalizers.NFC()
     
-    # Optimized Pre-tokenizer for Memory Efficiency
-    # Strict Script Isolation: Prevents merges between Tamil, Latin, and Digits.
-    SCRIPT_ISOLATOR = r"[\u0B80-\u0BFF]+|[a-zA-Z]+|[0-9]+|[^\s\u0B80-\u0BFFa-zA-Z0-9]+"
-    
     tokenizer.pre_tokenizer = Sequence([
-        # Stage 1: Respect morpheme boundaries (@@) - keep them
+        # Stage 1: Respect morpheme boundaries
         Split(pattern=r" @@ ", behavior="isolated"),
-        
-        # Stage 2: Hard script isolation (CRITICAL)
-        Split(
-            pattern=r"([\u0B80-\u0BFF]+)|([a-zA-Z]+)|([0-9]+)|[^\s\u0B80-\u0BFFa-zA-Z0-9]+",
-            behavior="isolated",
-            invert=False
-        ),
-        
-        # Stage 3: Byte-level encoding
+        # Stage 2: Byte-level encoding (Fast, no regex)
         pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False),
     ])
 
@@ -260,7 +249,6 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
     protected_tokens = special_tokens + tamil_syllables
     
     # Syllable Coverage Fix: Add syllables to initial alphabet
-    # This ensures Rust trainer sees them as atomic units from the start
     alphabet = pre_tokenizers.ByteLevel.alphabet()
     for s in tamil_syllables:
         for char in s:
@@ -277,12 +265,12 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
 
     log.info("Starting Native BPE Training (Fast Mode)...")
     
-    # MEMORY FIX for 8GB RAM:
-    # We only need a representative sample (e.g. 5M lines) to learn BPE merges.
-    # Training on 20GB in 8GB RAM will crash.
+    # MEMORY FIX for 8GB/30GB RAM:
+    # We samples max 5M lines for BPE counting to save RAM and time.
     max_bpe_lines = 5000000
     bpe_input_file = segmented_corpus_path
     
+    # Check line count
     line_count = 0
     with open(segmented_corpus_path, "r", encoding="utf-8") as f:
         for _ in f: line_count += 1
@@ -296,7 +284,7 @@ def train_amb_tokenizer(cfg: dict, corpus_path: Path):
                 if i >= max_bpe_lines: break
                 f_out.write(line)
     
-    # Set thread limit for 8GB RAM safety
+    # Set thread limit for safety
     os.environ["RAYON_NUM_THREADS"] = "4"
     tokenizer.train([str(bpe_input_file)], trainer)
 

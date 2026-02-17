@@ -35,37 +35,37 @@ def main():
     print("\n1. Checking syllable coverage fix...")
     if check_file_exists("tokenizer/train_amb_tokenizer.py"):
         if check_string_in_file("tokenizer/train_amb_tokenizer.py", "protected_tokens = special_tokens + tamil_syllables"):
-            print("   ✅ Syllable coverage fix applied")
+            print("   [PASSED] Syllable coverage fix applied")
             checks.append(True)
         else:
-            print("   ❌ Syllable coverage fix NOT found")
+            print("   [FAILED] Syllable coverage fix NOT found")
             print("      Expected: protected_tokens = special_tokens + tamil_syllables")
             checks.append(False)
     else:
-        print("   ❌ File not found: tokenizer/train_amb_tokenizer.py")
+        print("   [FAILED] File not found: tokenizer/train_amb_tokenizer.py")
         checks.append(False)
     
     # Check 2: Script isolation function in normalize.py
     print("\n2. Checking script isolation function...")
     if check_file_exists("tokenizer/normalize.py"):
         if check_string_in_file("tokenizer/normalize.py", "def isolate_scripts("):
-            print("   ✅ Script isolation function exists")
+            print("   [PASSED] Script isolation function exists")
             checks.append(True)
         else:
-            print("   ❌ Script isolation function NOT found")
+            print("   [FAILED] Script isolation function NOT found")
             checks.append(False)
     else:
-        print("   ❌ File not found: tokenizer/normalize.py")
+        print("   [FAILED] File not found: tokenizer/normalize.py")
         checks.append(False)
     
     # Check 3: Script isolation applied in process_document
     print("\n3. Checking script isolation is applied...")
     if check_file_exists("tokenizer/normalize.py"):
         if check_string_in_file("tokenizer/normalize.py", "text = isolate_scripts(text)"):
-            print("   ✅ Script isolation applied in process_document")
+            print("   [PASSED] Script isolation applied in process_document")
             checks.append(True)
         else:
-            print("   ❌ Script isolation NOT applied in process_document")
+            print("   [FAILED] Script isolation NOT applied in process_document")
             checks.append(False)
     else:
         checks.append(False)
@@ -74,10 +74,10 @@ def main():
     print("\n4. Checking strengthened pre-tokenizer...")
     if check_file_exists("tokenizer/train_amb_tokenizer.py"):
         if check_string_in_file("tokenizer/train_amb_tokenizer.py", "# Stage 1: Respect morpheme boundaries"):
-            print("   ✅ Pre-tokenizer strengthened with multi-stage isolation")
+            print("   [PASSED] Pre-tokenizer strengthened with multi-stage isolation")
             checks.append(True)
         else:
-            print("   ⚠️  Pre-tokenizer may need manual review")
+            print("   [WARNING] Pre-tokenizer may need manual review")
             checks.append(True)  # Not critical
     else:
         checks.append(False)
@@ -86,16 +86,16 @@ def main():
     print("\n5. Checking vocabulary size...")
     if check_file_exists("tokenizer/config.yaml"):
         if check_string_in_file("tokenizer/config.yaml", "vocab_size: 64000"):
-            print("   ✅ Vocabulary size set to 64000")
+            print("   [PASSED] Vocabulary size set to 64000")
             checks.append(True)
         elif check_string_in_file("tokenizer/config.yaml", "vocab_size: 48000"):
-            print("   ⚠️  Vocabulary size still at 48000 (recommended: 64000)")
+            print("   [WARNING] Vocabulary size still at 48000 (recommended: 64000)")
             checks.append(True)  # Not critical, but recommended
         else:
-            print("   ❌ Could not verify vocabulary size")
+            print("   [FAILED] Could not verify vocabulary size")
             checks.append(False)
     else:
-        print("   ❌ File not found: tokenizer/config.yaml")
+        print("   [FAILED] File not found: tokenizer/config.yaml")
         checks.append(False)
     
     # Check 6: Validation functions added
@@ -105,13 +105,13 @@ def main():
         has_leakage_check = check_string_in_file("tokenizer/train_amb_tokenizer.py", "def detect_cross_script_leakage(")
         
         if has_syllable_check and has_leakage_check:
-            print("   ✅ Validation functions added")
+            print("   [PASSED] Validation functions added")
             checks.append(True)
         else:
             if not has_syllable_check:
-                print("   ❌ verify_syllable_coverage() NOT found")
+                print("   [FAILED] verify_syllable_coverage() NOT found")
             if not has_leakage_check:
-                print("   ❌ detect_cross_script_leakage() NOT found")
+                print("   [FAILED] detect_cross_script_leakage() NOT found")
             checks.append(False)
     else:
         checks.append(False)
@@ -126,13 +126,13 @@ def main():
     for corpus_path in corpus_paths:
         if check_file_exists(corpus_path):
             size_mb = Path(corpus_path).stat().st_size / (1024 * 1024)
-            print(f"   ✅ Corpus found: {corpus_path} ({size_mb:.1f} MB)")
+            print(f"   [PASSED] Corpus found: {corpus_path} ({size_mb:.1f} MB)")
             corpus_found = True
             checks.append(True)
             break
     
     if not corpus_found:
-        print("   ⚠️  Corpus not found. Run: python tokenizer/collect_corpus.py")
+        print("   [WARNING] Corpus not found. Run: python tokenizer/collect_corpus.py")
         print("      Then: python tokenizer/normalize.py")
         checks.append(False)
     
@@ -147,7 +147,7 @@ def main():
     print(f"\nChecks passed: {passed}/{total}")
     
     if all(checks):
-        print("\n✅ ALL FIXES VERIFIED!")
+        print("\n[SUCCESS] ALL FIXES VERIFIED!")
         print("\nYou're ready to train:")
         print("  cd tokenizer")
         print("  python train_tokenizer.py --engine amb")
@@ -156,7 +156,7 @@ def main():
         print("  python train_tokenizer.py --engine amb")
         return 0
     else:
-        print("\n❌ Some fixes are missing or incomplete.")
+        print("\n[FAILURE] Some fixes are missing or incomplete.")
         print("\nTo apply all fixes automatically:")
         print("  python IMPLEMENT_FIXES.py --apply-all")
         print("\nOr apply fixes manually using the guide documents:")

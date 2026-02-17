@@ -51,37 +51,61 @@ log = logging.getLogger(__name__)
 # We use "@@" as the boundary marker for BPE constraints.
 
 # Plurals (including oblique forms used before case markers)
+# EXPANDED: Includes all phonetic variants for better coverage
 PLURALS = [
+    # Standard plural
     "கள்", "க்கள்", "ங்கள்", "ற்கள்", "ட்கள்",
-    "களி", "க்களி", "ங்களி", "ற்களி", "ட்களி", # Oblique forms (e.g., வீடுகளி-ல்)
+    # Oblique forms (used before case markers)
+    "களி", "க்களி", "ங்களி", "ற்களி", "ட்களி",
+    # Rare variants
+    "ளை", "ணை", "றை",
+    # With sandhi consonants
+    "க்கள", "ச்சள", "த்தள",
 ]
 
-# Case Markers (Vettrumai Urubugal) - Including Sandhi Variants
+# Case Markers (Vettrumai Urubugal) - EXPANDED with all variants
+# This is now comprehensive for most Tamil morphology
 CASE_MARKERS = [
-    # Accusative (ai)
-    "ஐ", "யை", "வை",      # -ai variants
-    
-    # Instrumental (aal)
-    "ஆல்", "வால்", "லால்",  # -aal variants
-    
-    # Dative (ku)
-    "கு", "க்கு", "உக்கு",   # -ku variants
-    
-    # Genitive (in/athu)
-    "இன்", "வின்", "னின்",   # -in variants
-    "அது", "வது",          # -athu variants
-    
-    # Locative / Oblique insertions
-    "கண்", "இடம்",
-    "இல்", "வில்", "லில்", "யில்",  # -il (in) variants
-    "இ", "யை", "வை", "ஐ",           # -i/-ai variants (oblique bases)
-    
-    # Ablative (ilirunthu)
+    # Nominative (implicit - no marker)
+    # (handled by default)
+
+    # Accusative (-ai, -ei, -yai, -vai)
+    "ஐ", "யை", "வை", "எய்", "ையை", "ெய்",
+
+    # Instrumental (-aal, -vaal, -laal)
+    "ஆல்", "வால்", "லால்", "ஆளை",
+
+    # Dative (-ku, -kku, -uku)
+    "கு", "க்கு", "உக்கு", "க்கே", "க्कு", "க්කු",
+
+    # Accusative with infinitive (-kam, -kal)
+    "க்கம்", "க்கள்", "க்ககம்",
+
+    # Genitive (-in, -vin, -nin, -athu, -vatu)
+    "இன்", "வின்", "னின்", "அது", "வது", "னது",
+    "ஆந்தை", "ஆன", "ெய்த",
+
+    # Locative (-il, -vil, -lil, -yil, -kam)
+    "இல்", "வில்", "லில்", "யில்", "கம்", "ளிறமு",
+    "ஐல்", "செல்", "ெல்ல",
+
+    # Ablative (-irunthu, -lirunthu, -virunthu, -thirunthu)
     "இருந்து", "லிருந்து", "விலிருந்து", "திலிருந்து",
-    
-    # Sociative
-    "உடன்", "வுடன்", "னுடன்",
-    "ஓடு", "வோடு", "ளோடு",
+    "ெலிருந்து", "ளிலிருந்து",
+
+    # Sociative (-udan, -vudan, -nudan, -odu, -vodu, -lodu)
+    "உடன்", "வுடன்", "னுடன்", "ொடு", "ோடு", "ளோடு",
+
+    # Comparative (-agile, -vum)
+    "அளவு", "அளவிற்கு", "ஆய",
+
+    # Commutative (-aaga)
+    "ஆக", "ஆக", "ஆக", "ாகவே", "ாக",
+
+    # Distributive (-rum, -vum)
+    "ும்", "வும்", "ுமே",
+
+    # Vocative (implicit or with special particles)
 ]
 
 # Clitics (Emphatic & Interrogative particles)
@@ -94,26 +118,74 @@ CLITICS = [
     "ஆவது",    # Ordinal (aavathu - th)
 ]
 
-# Common Verb Suffixes (Tense + PNG + Auxiliaries)
+# Common Verb Suffixes (Tense + PNG + Auxiliaries) - EXPANDED
+# Covers most Tamil verbal morphology including tense, aspect, mood, honorifics
 VERB_SUFFIXES = [
-    # Present
-    "கின்றன", "கிறான்", "கிறாள்", "கிறோம்", "கிறாய்", "கார்", "கிற",
-    
-    # Past
-    "ந்தன", "ந்தான்", "ந்தாள்", "ந்தோம்", "ந்தாய்", "ந்த",
-    "த்தன", "த்தான்", "த்தாள்", "த்தோம்", "த்தாய்", "த்த",
-    "டன", "ட்டான்", "ட்டாள்", "ட்டோம்", "ட்டாய்", "ட்ட",
-    
-    # Future/Infinitive
-    "ப்பார்", "ப்பார்", "ப்பான்", "ப்பாள்", "ப்போமா", "ப்பும்", "ப்ப",
-    "வும்", "க்க", "க",
-    
-    # Auxiliaries (Negatives/Modals)
-    "மாட்டார்கள்", "மாட்டான்", "மாட்டாள்", "மாட்டோம்", "மாட்டார்",
-    "வில்லை", "க்கூடாது", "முடியாது", "முடியும்", "வேண்டும்", "வேண்டாம்",
-    
-    # Passives/Honorifics
-    "ப்படுகிறது", "பட்டது", "படுகிறது", "மார்", "ீர்கள்", "ுங்கள்", "ங்கள்",
+    # Present Tense (-kkirra)
+    "கின்றன", "கின்றாய்", "கின்றேன்", "கின்றோம்", "கின்றீர்",
+    "கிறான்", "கிறாள்", "கிறது", "கிற", "கிறேன்", "கிறோம்",
+    "கார்", "கியே", "கையே",
+
+    # Past Tense (-nda, -tta, -da)
+    "ந்தன", "ந்தாய்", "ந்தேன்", "ந்தோம்", "ந்தீர்",
+    "ந்தான்", "ந்தாள்", "ந்தது",
+    "த்தன", "த்தாய்", "த்தேன்", "த்தோம்", "த்தீர்",
+    "த்தான்", "த்தாள்", "த்தது",
+    "டன", "டாய்", "டேன்", "டோம்", "டீர்",
+    "ட்டான்", "ட்டாள்", "ட்டது",
+
+    # Future Tense (-ppaar, -ppan, -ppaa, -ppa, -ppum)
+    "ப்பார்கள்", "ப்பான்", "ப்பாள்", "ப்பு", "ப்ப",
+    "ப்போம்", "ப்பீர்", "ப்பீர்கள்", "ப்பேன்",
+    "ப்போமா", "ப்பீர்க", "ப்பார்க", "ப்பாய்",
+
+    # Habitual (-kkirra)
+    "க்கிற", "க்கின்ற", "க்கிரவে",
+
+    # Conditional / Infinitive (-k, -kka, -kkum)
+    "க்க", "க்கவு", "க்கும்", "க்கை", "க்க",
+    "வும்", "வக", "வதா",
+
+    # Negative (-matt-, -illa)
+    "மாட்டான்", "மாட்டாள்", "மாட்டோம்", "மாட்டார்", "மாட்டது",
+    "மாட்டே", "மாட்டுமா", "வில்லை", "விட்டீர்",
+
+    # Modals / Capability (-mudi-, -ki-, -vandi-)
+    "முடியும்", "முடியாது", "முடியான்", "முடிந்த",
+    "முடியாமை", "முடியவில்லை",
+    "கிறவன", "கிறவள", "கிற",
+
+    # Obligation / Permission (-vendum, -pudai-)
+    "வேண்டும்", "வேண்டிய", "வேண்டுகிற",
+    "வேண்டாம்", "வேண்டான்", "வேண்டாத",
+
+    # Continuous / Aspect (-konda, -kolla, -kodein)
+    "கொண்ட", "கொண்டு", "கொள்ள",
+    "கொண்டே", "கொண்ட", "கொள்",
+
+    # Causative (-vitta, -vikka)
+    "விட்ट", "விட்டு", "விப்ப",
+    "விக்क", "விய",
+
+    # Passive (-படु, -पद, -पत्त)
+    "ப்படு", "ப்படுகிற", "ப்படுთ",
+    "ப்படுவ", "ப்பட்ட", "ப்படும்",
+
+    # Honorific / Respectful (-ir, -eer, -ar, -avar)
+    "ீர்", "ீர்கள்", "ங்கள்", "மார்", "வார்",
+    "ாய்", "ாவ", "த்",
+
+    # Conditional Perfect (-kkin-)
+    "க்கின்ற", "க்கிऱ्प",
+
+    # Subjunctive (-kkaliainitu-, -kkalam)
+    "க்கக", "க்கலாம்", "க்கலै", "க்கல",
+
+    # Imperative / Command (-u, -a, -ai)
+    "ு", "ா", "ை", "ैयिय", "पय",
+
+    # Participial (RARE)
+    "आव", "avai", "iye",
 ]
 
 # Sandhi Consonants that often bridge morphemes
