@@ -20,12 +20,16 @@ from pathlib import Path
 def setup_kaggle_env():
     print("🚀 Setting up Kaggle environment for Tamiluku-LLM...")
     
-    # 1. Install dependencies
-    req_path = Path("data_collection/requirements.txt")
+    # Get the repo root relative to this script
+    repo_root = Path(__file__).parent.absolute()
+    req_path = repo_root / "data_collection" / "requirements.txt"
+    
     if req_path.exists():
+        print(f"📦 Installing dependencies from: {req_path}")
         subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(req_path)], check=True)
     else:
-        print("❌ requirements.txt not found!")
+        print(f"❌ requirements.txt not found at {req_path}!")
+        print("💡 Make sure you are running this script from the Tamiluku-LLM directory or have the full repo structure.")
         sys.exit(1)
 
     # 2. Setup output directory
@@ -37,7 +41,8 @@ def run_collection(output_dir, gb):
     print(f"📥 Starting collection for {gb}GB of Tamil data...")
     
     # Use the orchestrator
-    orchestrator_path = Path("data_collection/orchestrator.py")
+    repo_root = Path(__file__).parent.absolute()
+    orchestrator_path = repo_root / "data_collection" / "orchestrator.py"
     
     cmd = [
         sys.executable,
