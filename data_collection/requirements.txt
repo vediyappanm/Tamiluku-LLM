@@ -1,0 +1,26 @@
+# Core
+requests>=2.31.0
+datasets>=2.18.0
+huggingface_hub>=0.21.0
+
+# Web Scraping & Text Extraction
+trafilatura>=1.8.0
+newspaper3k>=0.2.8
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# Text Processing
+unicodedata2>=15.1.0
+regex>=2024.4.16
+
+# Deduplication
+datasketch>=1.6.0
+
+# Parallelism
+aiohttp>=3.9.0
+aiofiles>=23.2.0
+tqdm>=4.66.0
+
+# Wikipedia dump processing
+mwparserfromhell>=0.6.6
+bz2file>=0.98
