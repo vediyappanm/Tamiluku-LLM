@@ -81,15 +81,14 @@ class ProjectMaduraiCollector:
             links = []
             for a_tag in soup.find_all('a', href=True):
                 href = a_tag['href']
-                # PM text pages follow patterns like pm_etext/pmXXXX.html
-                # IMPORTANT: Skip PDF links — we can only parse HTML/text
-                if href.lower().endswith('.pdf'):
+                href_lower = href.lower()
+                # Skip anything containing 'pdf' (covers .pdf, pm0794pdf, etc.)
+                if 'pdf' in href_lower:
                     continue
+                # PM text pages follow patterns like pm_etext/pmXXXX.html
                 if re.search(r'pm\d{3,4}', href, re.IGNORECASE):
                     full_url = urljoin(self.BASE_URL, href)
-                    # Only keep HTML/text URLs
-                    if any(full_url.lower().endswith(ext) for ext in ['.html', '.htm', '.txt', '']):
-                        links.append(full_url)
+                    links.append(full_url)
 
             # Deduplicate
             links = list(set(links))

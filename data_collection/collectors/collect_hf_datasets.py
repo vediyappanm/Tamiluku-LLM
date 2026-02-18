@@ -4,14 +4,11 @@ Tamiluku-LLM: Large-Scale Tamil Dataset Collector (HuggingFace)
 Domain 4: Colloquial & Social + Large Web Corpora
 
 Sources (via HuggingFace datasets):
-  1. CulturaX (uonlp/CulturaX) — 6.3T tokens, Tamil slice ~50GB+
-     THE gold standard for multilingual LLM pretraining.
-  2. IndicCorp V2 (ai4bharat/IndicCorpV2) — Curated Indian language corpus
-     High-quality, deduplicated Tamil text from multiple domains.
-  3. OSCAR (oscar-corpus/OSCAR-2301) — Common Crawl filtered
-     Large-scale web text, needs careful filtering.
-  4. Sangraha (ai4bharat/sangraha) — Latest AI4Bharat corpus
-  5. mc4 Tamil — Google's mC4 Tamil split
+  1. Sangraha (ai4bharat/sangraha) — AI4Bharat verified corpus (config: 'verified')
+  2. Wikipedia Tamil (wikimedia/wikipedia) — 20231101.ta snapshot
+  3. IndicCorp V2 (ai4bharat/IndicCorpV2) — config: 'indiccorp_v2'
+  4. cc100 Tamil — Monolingual web corpus
+  5. MADLAD-400 Tamil — Google's cleaned web crawl
 
 Why this matters for AMB:
   These datasets capture MODERN AGGLUTINATION patterns —
@@ -22,6 +19,10 @@ Why this matters for AMB:
 CRITICAL: These datasets are multi-terabyte.
   We STREAM them and extract only the Tamil portions.
   Target: ~6GB from these sources combined.
+
+NOTE on `trust_remote_code`:
+  The `datasets` library (>=4.x) no longer supports this parameter.
+  All datasets used here are standard Parquet/Arrow format and don't need it.
 """
 
 import os
@@ -45,60 +46,59 @@ from utils import (
 # ============================================================
 
 DATASET_CONFIGS = {
-    "culturax": {
-        "name": "CulturaX (Tamil)",
-        "hf_path": "uonlp/CulturaX",
-        "hf_config": "ta",
+    "sangraha": {
+        "name": "Sangraha Verified (Tamil)",
+        "hf_path": "ai4bharat/sangraha",
+        "hf_config": "verified",
+        "split": "train",
+        "text_field": "text",
+        "language_field": "language",
+        "language_value": "tam",
+        "streaming": True,
+        "target_gb": 2.0,
+        "description": "AI4Bharat's latest verified corpus. Filter by language=tam.",
+    },
+    "wiki_tamil": {
+        "name": "Wikipedia Tamil",
+        "hf_path": "wikimedia/wikipedia",
+        "hf_config": "20231101.ta",
         "split": "train",
         "text_field": "text",
         "streaming": True,
-        "target_gb": 3.0,
-        "description": "Gold standard multilingual corpus. Tamil slice.",
-        "trust_remote_code": True,
+        "target_gb": 0.8,
+        "description": "Tamil Wikipedia snapshot — encyclopedic text.",
     },
     "indic_corp_v2": {
         "name": "IndicCorp V2 (Tamil)",
         "hf_path": "ai4bharat/IndicCorpV2",
+        "hf_config": "indiccorp_v2",
+        "split": "train",
+        "text_field": "text",
+        "language_field": "language",
+        "language_value": "ta",
+        "streaming": True,
+        "target_gb": 2.0,
+        "description": "AI4Bharat curated Indian language corpus. Filter by lang=ta.",
+    },
+    "cc100_tamil": {
+        "name": "CC100 Tamil",
+        "hf_path": "cc100",
         "hf_config": "ta",
         "split": "train",
         "text_field": "text",
         "streaming": True,
         "target_gb": 2.0,
-        "description": "AI4Bharat curated Indian language corpus.",
-        "trust_remote_code": True,
+        "description": "Monolingual web text from Common Crawl, Tamil split.",
     },
-    "oscar_tamil": {
-        "name": "OSCAR 2301 (Tamil)",
-        "hf_path": "oscar-corpus/OSCAR-2301",
+    "madlad_tamil": {
+        "name": "MADLAD-400 Tamil (Clean)",
+        "hf_path": "allenai/MADLAD-400",
         "hf_config": "ta",
-        "split": "train",
+        "split": "clean",
         "text_field": "text",
         "streaming": True,
         "target_gb": 2.0,
-        "description": "Common Crawl filtered for Tamil.",
-        "trust_remote_code": True,
-    },
-    "sangraha": {
-        "name": "Sangraha (Tamil)",
-        "hf_path": "ai4bharat/sangraha",
-        "hf_config": "verified/tam",
-        "split": "train",
-        "text_field": "text",
-        "streaming": True,
-        "target_gb": 1.5,
-        "description": "AI4Bharat's latest verified corpus.",
-        "trust_remote_code": True,
-    },
-    "mc4_tamil": {
-        "name": "mC4 Tamil",
-        "hf_path": "mc4",
-        "hf_config": "ta",
-        "split": "train",
-        "text_field": "text",
-        "streaming": True,
-        "target_gb": 2.0,
-        "description": "Google's mC4 multilingual corpus, Tamil split.",
-        "trust_remote_code": True,
+        "description": "Google's cleaned web crawl for 400+ languages.",
     },
 }
 
@@ -148,7 +148,7 @@ class HFDatasetCollector:
         logger.info(f"  Target: {target_gb} GB")
 
         try:
-            # Load with streaming
+            # Load with streaming — NO trust_remote_code
             load_kwargs = {
                 'path': config['hf_path'],
                 'split': config.get('split', 'train'),
@@ -158,12 +158,11 @@ class HFDatasetCollector:
             if config.get('hf_config'):
                 load_kwargs['name'] = config['hf_config']
 
-            if config.get('trust_remote_code'):
-                load_kwargs['trust_remote_code'] = True
-
             dataset = load_dataset(**load_kwargs)
 
             text_field = config.get('text_field', 'text')
+            language_field = config.get('language_field')
+            language_value = config.get('language_value')
             total_bytes = int(current_gb * (1024 ** 3))  # Resume from existing
             processed = 0
             skipped = 0
@@ -178,6 +177,13 @@ class HFDatasetCollector:
                     if current_gb >= target_gb:
                         logger.info(f"Reached target {target_gb} GB for {config['name']}")
                         break
+
+                    # Language filter (for multi-language datasets)
+                    if language_field and language_value:
+                        doc_lang = doc.get(language_field, '')
+                        if doc_lang and doc_lang != language_value:
+                            pbar.update(1)
+                            continue
 
                     # Extract text
                     text = doc.get(text_field, '')
@@ -217,8 +223,8 @@ class HFDatasetCollector:
 
         except Exception as e:
             logger.error(f"Failed to collect {config['name']}: {e}")
-            logger.error(f"  This may require: huggingface-cli login")
-            logger.error(f"  Some datasets need HF access approval.")
+            import traceback
+            traceback.print_exc()
             return None
 
     def collect_all(self,
@@ -276,22 +282,22 @@ def collect_hf_datasets(output_dir: Path,
     Entry point for HuggingFace dataset collection.
 
     Priority order (by quality/relevance):
-    1. CulturaX — Highest quality, deduplicated
-    2. IndicCorp V2 — Curated for Indian languages
-    3. Sangraha — Latest AI4Bharat
-    4. OSCAR — Large but needs more filtering
-    5. mC4 — Fallback for volume
+    1. Sangraha — AI4Bharat verified, high quality
+    2. Wikipedia Tamil — Encyclopedic text
+    3. IndicCorp V2 — Curated for Indian languages
+    4. CC100 — Large monolingual web text
+    5. MADLAD-400 — Google's cleaned web crawl
     """
     output_dir = Path(output_dir) / "hf_datasets"
     collector = HFDatasetCollector(output_dir)
 
     # Priority order
     priority_order = datasets or [
-        "culturax",
-        "indic_corp_v2",
         "sangraha",
-        "oscar_tamil",
-        "mc4_tamil",
+        "wiki_tamil",
+        "indic_corp_v2",
+        "cc100_tamil",
+        "madlad_tamil",
     ]
 
     return collector.collect_all(

@@ -83,7 +83,6 @@ def collect_wiki_from_huggingface(output_dir: Path,
             "20231101.ta",
             split="train",
             streaming=True,
-            trust_remote_code=True,
         )
 
         total_bytes = 0
@@ -285,7 +284,7 @@ def collect_wiki_from_dump(output_dir: Path,
 # MAIN ENTRY POINT
 # ============================================================
 
-def collect_wiki(output_dir: Path, method: str = "huggingface") -> list[Path]:
+def collect_wiki(output_dir: Path, method: str = "huggingface", max_workers: int = 4, **kwargs) -> list[Path]:
     """
     Collect Tamil Wikipedia content.
 

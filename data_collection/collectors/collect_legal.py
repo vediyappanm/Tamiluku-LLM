@@ -202,13 +202,15 @@ class GovtTextCollector:
                 members = data.get('query', {}).get('categorymembers', [])
 
                 for member in tqdm(members, desc=f"Category: {category}"):
-                    # Get page content
+                    # Get page content via revisions API (extracts not supported)
                     page_params = {
                         'action': 'query',
                         'titles': member['title'],
-                        'prop': 'extracts',
-                        'explaintext': True,
+                        'prop': 'revisions',
+                        'rvprop': 'content',
+                        'rvslots': 'main',
                         'format': 'json',
+                        'formatversion': '2',
                     }
 
                     try:
@@ -216,19 +218,31 @@ class GovtTextCollector:
                             API_URL, params=page_params, timeout=30
                         )
                         page_data = page_resp.json()
-                        pages = page_data.get('query', {}).get('pages', {})
+                        pages = page_data.get('query', {}).get('pages', [])
 
-                        for pid, pdata in pages.items():
-                            text = pdata.get('extract', '')
-                            if text:
-                                cleaned = clean_and_filter_text(
-                                    text, min_tamil_ratio=0.40
-                                )
-                                if len(cleaned) > 100:
-                                    total_bytes += save_clean_text(
-                                        cleaned + '\n\n', output_file
+                        for pdata in pages:
+                            if pdata.get('missing'):
+                                continue
+                            revisions = pdata.get('revisions', [])
+                            if revisions:
+                                content = revisions[0].get('slots', {}).get('main', {}).get('content', '')
+                                if content:
+                                    # Strip wiki markup
+                                    text = re.sub(r'\{\{[^}]*\}\}', '', content)
+                                    text = re.sub(r'\[\[[^|\]]*\|([^\]]*)\]\]', r'\1', text)
+                                    text = re.sub(r'\[\[([^\]]*)\]\]', r'\1', text)
+                                    text = re.sub(r'<[^>]+>', '', text)
+                                    text = re.sub(r"'{2,}", '', text)
+                                    text = re.sub(r'={2,}([^=]+)={2,}', r'\1', text)
+
+                                    cleaned = clean_and_filter_text(
+                                        text, min_tamil_ratio=0.40
                                     )
-                                    processed += 1
+                                    if len(cleaned) > 100:
+                                        total_bytes += save_clean_text(
+                                            cleaned + '\n\n', output_file
+                                        )
+                                        processed += 1
                     except Exception:
                         continue
 
@@ -263,7 +277,6 @@ class GovtTextCollector:
                         config,
                         split="train",
                         streaming=True,
-                        trust_remote_code=True,
                     )
 
                     for i, item in enumerate(ds):
