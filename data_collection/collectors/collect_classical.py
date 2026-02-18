@@ -19,6 +19,7 @@ Why this matters for AMB:
 import os
 import re
 import sys
+import time
 import json
 import logging
 from pathlib import Path
@@ -81,13 +82,18 @@ class ProjectMaduraiCollector:
             for a_tag in soup.find_all('a', href=True):
                 href = a_tag['href']
                 # PM text pages follow patterns like pm_etext/pmXXXX.html
+                # IMPORTANT: Skip PDF links — we can only parse HTML/text
+                if href.lower().endswith('.pdf'):
+                    continue
                 if re.search(r'pm\d{3,4}', href, re.IGNORECASE):
                     full_url = urljoin(self.BASE_URL, href)
-                    links.append(full_url)
+                    # Only keep HTML/text URLs
+                    if any(full_url.lower().endswith(ext) for ext in ['.html', '.htm', '.txt', '']):
+                        links.append(full_url)
 
             # Deduplicate
             links = list(set(links))
-            logger.info(f"Discovered {len(links)} text links from Project Madurai")
+            logger.info(f"Discovered {len(links)} text links from Project Madurai (PDFs excluded)")
             return links
 
         except Exception as e:
@@ -246,25 +252,52 @@ class TamilWikisourceCollector:
         return pages[:limit]
 
     def get_page_text(self, title: str) -> Optional[str]:
-        """Get plain text content of a Wikisource page."""
+        """Get plain text content of a Wikisource page via revisions API."""
+        # Use revisions API instead of extracts (more reliable for Wikisource)
         params = {
             'action': 'query',
             'titles': title,
-            'prop': 'extracts',
-            'explaintext': True,
-            'format': 'json'
+            'prop': 'revisions',
+            'rvprop': 'content',
+            'rvslots': 'main',
+            'format': 'json',
+            'formatversion': '2',
         }
 
-        try:
-            response = self.session.get(self.API_URL, params=params, timeout=30)
-            data = response.json()
+        for attempt in range(3):
+            try:
+                response = self.session.get(self.API_URL, params=params, timeout=30)
+                if response.status_code != 200:
+                    time.sleep(2 ** attempt)
+                    continue
+                data = response.json()
 
-            pages = data.get('query', {}).get('pages', {})
-            for page_id, page_data in pages.items():
-                if page_id != '-1':
-                    return page_data.get('extract', '')
-        except Exception as e:
-            logger.error(f"Failed to get page '{title}': {e}")
+                pages = data.get('query', {}).get('pages', [])
+                for page_data in pages:
+                    if page_data.get('missing'):
+                        continue
+                    revisions = page_data.get('revisions', [])
+                    if revisions:
+                        content = revisions[0].get('slots', {}).get('main', {}).get('content', '')
+                        if content:
+                            # Strip wiki markup (basic)
+                            import mwparserfromhell
+                            try:
+                                parsed = mwparserfromhell.parse(content)
+                                return parsed.strip_code(normalize=True, collapse=True)
+                            except Exception:
+                                # Fallback: regex cleanup
+                                text = re.sub(r'\{\{[^}]*\}\}', '', content)
+                                text = re.sub(r'\[\[[^|\]]*\|([^\]]*)\]\]', r'\1', text)
+                                text = re.sub(r'\[\[([^\]]*)\]\]', r'\1', text)
+                                text = re.sub(r'<[^>]+>', '', text)
+                                text = re.sub(r"'{2,}", '', text)
+                                text = re.sub(r'={2,}([^=]+)={2,}', r'\1', text)
+                                return text
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Failed to get page '{title}': {e}")
+                time.sleep(1)
 
         return None
 
@@ -277,15 +310,13 @@ class TamilWikisourceCollector:
         total_bytes = 0
         processed = 0
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {
-                executor.submit(self.get_page_text, title): title
-                for title in pages
-            }
-
-            with tqdm(total=len(futures), desc="Wikisource") as pbar:
-                for future in as_completed(futures):
-                    text = future.result()
+        # Process in batches of 20 to avoid API rate-limiting
+        batch_size = 20
+        with tqdm(total=len(pages), desc="Wikisource") as pbar:
+            for i in range(0, len(pages), batch_size):
+                batch = pages[i:i + batch_size]
+                for title in batch:
+                    text = self.get_page_text(title)
                     if text:
                         cleaned = clean_and_filter_text(text, min_tamil_ratio=0.50)
                         if len(cleaned) > 50:
@@ -295,6 +326,9 @@ class TamilWikisourceCollector:
                             )
                             processed += 1
                     pbar.update(1)
+                    pbar.set_postfix({'texts': processed, 'MB': f"{total_bytes/(1024**2):.1f}"})
+                # Rate-limit: small delay between batches
+                time.sleep(0.5)
 
         logger.info(
             f"Wikisource: {processed} pages, "

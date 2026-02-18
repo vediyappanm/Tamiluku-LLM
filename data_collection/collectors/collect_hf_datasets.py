@@ -269,7 +269,9 @@ class HFDatasetCollector:
 
 def collect_hf_datasets(output_dir: Path,
                         total_target_gb: float = 8.0,
-                        datasets: list[str] = None) -> list[Path]:
+                        datasets: list[str] = None,
+                        max_workers: int = 4,
+                        **kwargs) -> list[Path]:
     """
     Entry point for HuggingFace dataset collection.
 
