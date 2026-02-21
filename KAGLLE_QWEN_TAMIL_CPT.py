@@ -20,13 +20,13 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     import sys
     print("🛠️ Fixing environment (downgrading datasets + installing Unsloth)...")
     # We pin datasets to 2.16.0. pyarrow-hotfix is required for this version but missing in Kaggle 3.12
-    # We also add sentencepiece/protobuf for tokenizer compatibility
+    # We pin peft to 0.12.0 because newer versions remove 'ensure_weight_tying' which Unsloth expects
     dependencies = [
         "unsloth", "unsloth_zoo", "datasets==2.16.0", "pyarrow-hotfix",
-        "xformers", "trl", "peft", "accelerate", "bitsandbytes",
-        "sentencepiece", "protobuf"
+        "peft==0.12.0", "trl==0.8.6", "xformers", "accelerate", "bitsandbytes",
+        "sentencepiece", "protobuf", "typing-extensions"
     ]
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps"] + dependencies)
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "--upgrade"] + dependencies)
     print("✅ Installation complete. Please restart the kernel if you see metadata errors.")
     from unsloth import FastLanguageModel
 
