@@ -7,6 +7,18 @@ Vocabulary: 48k AMB Tokens
 Hardware: Kaggle T4 GPU (16GB VRAM)
 """
 
+import os
+# Disable Triton compiler for older GPUs BEFORE any imports (P100 has CUDA 6.0, Triton needs 7.0+)
+os.environ["TORCH_DYNAMO_DISABLE"] = "1"
+os.environ["UNSLOTH_DISABLE_FUSED_LOSS"] = "1"
+
+# Clear Unsloth's compiled cache to force recompilation without fused loss
+import shutil
+cache_dir = "/kaggle/working/Tamiluku-LLM/unsloth_compiled_cache"
+if os.path.exists(cache_dir):
+    shutil.rmtree(cache_dir)
+    print("🗑️ Cleared Unsloth compiled cache")
+
 # Handle Kaggle-specific dependency issues (unsloth_zoo and datasets versioning)
 try:
     import pyarrow_hotfix 
@@ -30,16 +42,11 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     print("✅ Installation complete. Please restart the kernel if you see metadata errors.")
     from unsloth import FastLanguageModel
 
-import os
 import torch
 from datasets import load_dataset
 from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer
 import numpy as np
-
-# Disable Triton compiler for older GPUs (P100 has CUDA 6.0, Triton needs 7.0+)
-os.environ["TORCH_DYNAMO_DISABLE"] = "1"
-os.environ["UNSLOTH_DISABLE_FUSED_LOSS"] = "1"
 
 # Monkey-patch LoraConfig to handle ensure_weight_tying parameter
 # This parameter was removed in newer peft versions but Unsloth still passes it
@@ -51,23 +58,6 @@ def patched_init(self, *args, **kwargs):
     original_init(self, *args, **kwargs)
 
 LoraConfig.__init__ = patched_init
-
-# Monkey-patch unsloth_fused_ce_loss to use standard PyTorch loss (fixes Triton issue on older GPUs)
-import torch.nn.functional as F
-from unsloth_zoo.fused_losses.cross_entropy_loss import unsloth_fused_ce_loss as original_fused_loss
-
-def patched_fused_ce_loss(logits, labels, **kwargs):
-    """Fallback to standard PyTorch loss for P100 compatibility"""
-    batch_size, seq_length, vocab_size = logits.shape
-    logits_flat = logits.view(-1, vocab_size)
-    labels_flat = labels.view(-1)
-    return F.cross_entropy(logits_flat, labels_flat, reduction='mean')
-
-try:
-    import unsloth_zoo.fused_losses.cross_entropy_loss as fused_module
-    fused_module.unsloth_fused_ce_loss = patched_fused_ce_loss
-except:
-    pass
 
 # 1. SETUP CONFIGURATION
 MODEL_NAME = "Qwen/Qwen2.5-7B" # Base model
