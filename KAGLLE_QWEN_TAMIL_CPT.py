@@ -186,6 +186,7 @@ def train():
             output_dir = OUTPUT_DIR,
             save_total_limit = 2,
             save_steps = 250,
+            report_to = [],  # Disable W&B logging
         ),
     )
 
