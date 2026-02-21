@@ -107,7 +107,7 @@ def get_corpus_path():
 
 CORPUS_PATH = get_corpus_path()
 
-max_seq_length = 2048 # Adjust based on need
+max_seq_length = 1024 # Reduced from 2048 to save memory for P100
 dtype = None # None for auto detection
 load_in_4bit = True # Use 4-bit quantization to save memory
 
@@ -211,8 +211,8 @@ def train():
         max_seq_length = max_seq_length,
         dataset_num_proc = 2,
         args = TrainingArguments(
-            per_device_train_batch_size = 2,
-            gradient_accumulation_steps = 4,
+            per_device_train_batch_size = 1,
+            gradient_accumulation_steps = 8,
             warmup_steps = 100,
             max_steps = 1000, # Start with 1000 for Kaggle
             learning_rate = 2e-4,
