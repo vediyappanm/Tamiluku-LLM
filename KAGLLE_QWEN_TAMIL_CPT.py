@@ -7,12 +7,20 @@ Vocabulary: 48k AMB Tokens
 Hardware: Kaggle T4 GPU (16GB VRAM)
 """
 
+try:
+    from unsloth import FastLanguageModel
+except (ImportError, ModuleNotFoundError):
+    import subprocess
+    import sys
+    print("🛠️ Installing missing dependencies (Unsloth)...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "unsloth", "unsloth_zoo", "xformers", "trl", "peft", "accelerate", "bitsandbytes"])
+    from unsloth import FastLanguageModel
+
 import os
 import torch
 from datasets import load_dataset
 from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer
-from unsloth import FastLanguageModel
 import numpy as np
 
 # 1. SETUP CONFIGURATION
