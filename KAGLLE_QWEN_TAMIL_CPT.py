@@ -20,10 +20,10 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     import sys
     print("🛠️ Fixing environment (downgrading datasets + installing Unsloth)...")
     # We pin datasets to 2.16.0. pyarrow-hotfix is required for this version but missing in Kaggle 3.12
-    # We pin peft to 0.4.0 because newer versions remove 'ensure_weight_tying' which Unsloth expects
+    # peft versions are flexible now - monkey-patch handles ensure_weight_tying compatibility
     dependencies = [
         "unsloth", "unsloth_zoo", "datasets==2.16.0", "pyarrow-hotfix",
-        "peft==0.4.0", "trl==0.8.6", "xformers", "accelerate", "bitsandbytes",
+        "peft", "trl", "xformers", "accelerate", "bitsandbytes",
         "sentencepiece", "protobuf", "typing-extensions"
     ]
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "--upgrade"] + dependencies)
@@ -36,6 +36,17 @@ from datasets import load_dataset
 from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer
 import numpy as np
+
+# Monkey-patch LoraConfig to handle ensure_weight_tying parameter
+# This parameter was removed in newer peft versions but Unsloth still passes it
+from peft import LoraConfig
+original_init = LoraConfig.__init__
+
+def patched_init(self, *args, **kwargs):
+    kwargs.pop('ensure_weight_tying', None)  # Remove unsupported parameter
+    original_init(self, *args, **kwargs)
+
+LoraConfig.__init__ = patched_init
 
 # 1. SETUP CONFIGURATION
 MODEL_NAME = "Qwen/Qwen2.5-7B" # Base model
