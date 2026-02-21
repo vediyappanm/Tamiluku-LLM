@@ -45,36 +45,9 @@ except (ImportError, ModuleNotFoundError, AttributeError):
 import torch
 import torch.nn.functional as F
 from datasets import load_dataset
-from transformers import TrainingArguments, AutoTokenizer
-from trl import SFTTrainer
+from transformers import TrainingArguments, AutoTokenizer, Trainer, DataCollatorForLanguageModeling
+from transformers import default_data_collator
 import numpy as np
-
-# Custom trainer that uses standard loss instead of Unsloth's fused loss (P100 compatible)
-class StandardLossSFTTrainer(SFTTrainer):
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        """Compute loss using standard PyTorch instead of fused loss"""
-        # Extract labels from inputs
-        labels = inputs.pop("labels", None)
-
-        if labels is None:
-            # Fall back to model's loss computation if no labels
-            outputs = model(**inputs)
-            return (outputs.loss, outputs) if return_outputs else outputs.loss
-
-        # Forward pass without computing loss in model
-        outputs = model(**inputs, output_hidden_states=False)
-        logits = outputs.logits
-
-        # Compute loss using standard cross entropy
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
-        loss = F.cross_entropy(
-            shift_logits.view(-1, shift_logits.size(-1)),
-            shift_labels.view(-1),
-            ignore_index=-100
-        )
-
-        return (loss, outputs) if return_outputs else loss
 
 # Monkey-patch LoraConfig to handle ensure_weight_tying parameter
 # This parameter was removed in newer peft versions but Unsloth still passes it
@@ -190,10 +163,19 @@ def prepare_lora(model):
     print("✅ LoRA configured (P100 compatible with standard loss)")
     return model
 
-# 5. DATA LOADING
-def load_data():
+# 5. DATA LOADING & TOKENIZATION
+def load_data(tokenizer):
     print(f"📖 Loading corpus: {CORPUS_PATH}")
     dataset = load_dataset("text", data_files={"train": CORPUS_PATH}, split="train")
+
+    def tokenize_function(examples):
+        tokens = tokenizer(examples["text"], truncation=True, max_length=max_seq_length)
+        tokens["labels"] = tokens["input_ids"].copy()
+        return tokens
+
+    # Tokenize dataset
+    print("Tokenizing dataset...")
+    dataset = dataset.map(tokenize_function, batched=True, num_proc=2, remove_columns=["text"])
     return dataset
 
 # 6. RUN TRAINING
@@ -201,20 +183,19 @@ def train():
     setup_checkpoint()
     model, tokenizer = load_and_resize()
     model = prepare_lora(model)
-    dataset = load_data()
+    dataset = load_data(tokenizer)
 
-    trainer = StandardLossSFTTrainer(
+    # Use base Trainer with explicit batch size control
+    trainer = Trainer(
         model = model,
         tokenizer = tokenizer,
         train_dataset = dataset,
-        dataset_text_field = "text",
-        max_seq_length = max_seq_length,
-        dataset_num_proc = 2,
+        data_collator = default_data_collator,
         args = TrainingArguments(
             per_device_train_batch_size = 1,
             gradient_accumulation_steps = 16,
             warmup_steps = 50,
-            max_steps = 500, # Reduced for memory constraints
+            max_steps = 500,
             learning_rate = 2e-4,
             fp16 = not torch.cuda.is_bf16_supported(),
             bf16 = torch.cuda.is_bf16_supported(),
@@ -226,7 +207,7 @@ def train():
             output_dir = OUTPUT_DIR,
             save_total_limit = 2,
             save_steps = 250,
-            report_to = [],  # Disable W&B logging
+            report_to = [],
         ),
     )
 
