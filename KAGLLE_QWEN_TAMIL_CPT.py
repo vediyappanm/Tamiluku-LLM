@@ -34,8 +34,22 @@ import numpy as np
 # 1. SETUP CONFIGURATION
 MODEL_NAME = "Qwen/Qwen2.5-7B" # Base model
 TOKENIZER_PATH = "/kaggle/working/Tamiluku-LLM/tokenizer/tokenizer (1).json"
-CORPUS_PATH = "/kaggle/working/tamil_gold_corpus/raw_tamil_gold.txt"
 OUTPUT_DIR = "/kaggle/working/qwen2.5-tamil-amb"
+
+# Robust corpus path detection
+def get_corpus_path():
+    possible_paths = [
+        "/kaggle/working/tamil_gold_corpus/raw_tamil_gold.txt",
+        "/kaggle/input/tamil-corpus-txt/tamil_corpus.txt",
+        "/kaggle/working/Tamiluku-LLM/tamil_corpus.txt",
+        "tamil_corpus.txt"
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            return p
+    return possible_paths[0] # Fallback to default
+
+CORPUS_PATH = get_corpus_path()
 
 max_seq_length = 2048 # Adjust based on need
 dtype = None # None for auto detection
@@ -57,7 +71,19 @@ def load_and_resize():
 
     # Load your custom AMB Tokenizer
     print("Merging AMB Vocabulary...")
-    custom_tokenizer = AutoTokenizer.from_pretrained("/kaggle/working/Tamiluku-LLM/tokenizer")
+    import glob
+    from transformers import PreTrainedTokenizerFast
+    
+    # Robustly find the tokenizer file even if it has (1) in the name
+    tokenizer_files = glob.glob("/kaggle/working/Tamiluku-LLM/tokenizer/tokenizer*.json")
+    if not tokenizer_files:
+        raise FileNotFoundError("Could not find any tokenizer.json in /kaggle/working/Tamiluku-LLM/tokenizer/")
+    
+    tokenizer_file = tokenizer_files[0]
+    print(f"Using tokenizer file: {tokenizer_file}")
+    
+    # Use PreTrainedTokenizerFast to bypass AutoConfig check
+    custom_tokenizer = PreTrainedTokenizerFast(tokenizer_file=tokenizer_file)
     
     # Add new tokens to the base tokenizer
     new_tokens = set(custom_tokenizer.get_vocab().keys()) - set(tokenizer.get_vocab().keys())
