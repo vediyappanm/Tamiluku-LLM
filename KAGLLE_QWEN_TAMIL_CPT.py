@@ -43,10 +43,30 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     from unsloth import FastLanguageModel
 
 import torch
+import torch.nn.functional as F
 from datasets import load_dataset
 from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer
 import numpy as np
+
+# Custom trainer that uses standard loss instead of Unsloth's fused loss (P100 compatible)
+class StandardLossSFTTrainer(SFTTrainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """Compute loss using standard PyTorch instead of fused loss"""
+        labels = inputs.pop("labels")
+        outputs = model(**inputs, output_hidden_states=False)
+        logits = outputs.logits
+
+        # Compute loss using standard cross entropy
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        loss = F.cross_entropy(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1),
+            ignore_index=-100
+        )
+
+        return (loss, outputs) if return_outputs else loss
 
 # Monkey-patch LoraConfig to handle ensure_weight_tying parameter
 # This parameter was removed in newer peft versions but Unsloth still passes it
@@ -159,36 +179,7 @@ def prepare_lora(model):
         use_gradient_checkpointing = "unsloth",
         random_state = 3407,
     )
-
-    # Patch forward to disable fused loss for P100 GPU compatibility
-    import torch.nn.functional as F
-    original_forward = model.forward
-
-    def patched_forward(input_ids=None, attention_mask=None, labels=None, **kwargs):
-        # Call original forward but intercept the loss computation
-        outputs = original_forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=None,  # Don't compute loss in model
-            **kwargs
-        )
-
-        # Compute loss using standard PyTorch if labels provided
-        if labels is not None:
-            logits = outputs.logits
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            loss = F.cross_entropy(
-                shift_logits.view(-1, shift_logits.size(-1)),
-                shift_labels.view(-1),
-                ignore_index=-100
-            )
-            outputs.loss = loss
-
-        return outputs
-
-    model.forward = patched_forward
-    print("✅ Patched model forward to use standard loss (P100 compatible)")
+    print("✅ LoRA configured (P100 compatible with standard loss)")
     return model
 
 # 5. DATA LOADING
@@ -204,7 +195,7 @@ def train():
     model = prepare_lora(model)
     dataset = load_data()
 
-    trainer = SFTTrainer(
+    trainer = StandardLossSFTTrainer(
         model = model,
         tokenizer = tokenizer,
         train_dataset = dataset,
