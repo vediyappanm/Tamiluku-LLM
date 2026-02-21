@@ -7,13 +7,21 @@ Vocabulary: 48k AMB Tokens
 Hardware: Kaggle T4 GPU (16GB VRAM)
 """
 
+# Handle Kaggle-specific dependency issues (unsloth_zoo and datasets versioning)
 try:
+    import datasets
+    # Unsloth has known recursion issues with datasets >= 3.0.0
+    if int(datasets.__version__.split('.')[0]) >= 3:
+        raise ImportError("Version conflict")
     from unsloth import FastLanguageModel
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError, AttributeError):
     import subprocess
     import sys
-    print("🛠️ Installing missing dependencies (Unsloth)...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "unsloth", "unsloth_zoo", "xformers", "trl", "peft", "accelerate", "bitsandbytes"])
+    print("🛠️ Fixing environment (downgrading datasets + installing Unsloth)...")
+    # We pin datasets to 2.16.0 which is stable with Unsloth
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "unsloth", "unsloth_zoo", "datasets==2.16.0", "xformers", "trl", "peft", "accelerate", "bitsandbytes"])
+    # Force a reload of the process or at least metadata (though fresh run is better)
+    print("✅ Installation complete. Please restart the kernel if you see metadata errors.")
     from unsloth import FastLanguageModel
 
 import os
