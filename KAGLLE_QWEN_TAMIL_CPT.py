@@ -37,6 +37,10 @@ from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer
 import numpy as np
 
+# Disable Triton compiler for older GPUs (P100 has CUDA 6.0, Triton needs 7.0+)
+os.environ["TORCH_DYNAMO_DISABLE"] = "1"
+os.environ["UNSLOTH_DISABLE_FUSED_LOSS"] = "1"
+
 # Monkey-patch LoraConfig to handle ensure_weight_tying parameter
 # This parameter was removed in newer peft versions but Unsloth still passes it
 from peft import LoraConfig
