@@ -51,9 +51,17 @@ import numpy as np
 
 # Custom trainer that uses standard loss instead of Unsloth's fused loss (P100 compatible)
 class StandardLossSFTTrainer(SFTTrainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         """Compute loss using standard PyTorch instead of fused loss"""
-        labels = inputs.pop("labels")
+        # Extract labels from inputs
+        labels = inputs.pop("labels", None)
+
+        if labels is None:
+            # Fall back to model's loss computation if no labels
+            outputs = model(**inputs)
+            return (outputs.loss, outputs) if return_outputs else outputs.loss
+
+        # Forward pass without computing loss in model
         outputs = model(**inputs, output_hidden_states=False)
         logits = outputs.logits
 
