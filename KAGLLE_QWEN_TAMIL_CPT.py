@@ -52,6 +52,23 @@ def patched_init(self, *args, **kwargs):
 
 LoraConfig.__init__ = patched_init
 
+# Monkey-patch unsloth_fused_ce_loss to use standard PyTorch loss (fixes Triton issue on older GPUs)
+import torch.nn.functional as F
+from unsloth_zoo.fused_losses.cross_entropy_loss import unsloth_fused_ce_loss as original_fused_loss
+
+def patched_fused_ce_loss(logits, labels, **kwargs):
+    """Fallback to standard PyTorch loss for P100 compatibility"""
+    batch_size, seq_length, vocab_size = logits.shape
+    logits_flat = logits.view(-1, vocab_size)
+    labels_flat = labels.view(-1)
+    return F.cross_entropy(logits_flat, labels_flat, reduction='mean')
+
+try:
+    import unsloth_zoo.fused_losses.cross_entropy_loss as fused_module
+    fused_module.unsloth_fused_ce_loss = patched_fused_ce_loss
+except:
+    pass
+
 # 1. SETUP CONFIGURATION
 MODEL_NAME = "Qwen/Qwen2.5-7B" # Base model
 TOKENIZER_PATH = "/kaggle/working/Tamiluku-LLM/tokenizer/tokenizer (1).json"
