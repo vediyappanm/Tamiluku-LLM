@@ -107,7 +107,7 @@ def get_corpus_path():
 
 CORPUS_PATH = get_corpus_path()
 
-max_seq_length = 1024 # Reduced from 2048 to save memory for P100
+max_seq_length = 512 # Reduced from 2048 to save memory for P100
 dtype = None # None for auto detection
 load_in_4bit = True # Use 4-bit quantization to save memory
 
@@ -175,13 +175,13 @@ def prepare_lora(model):
     print("🛠️ Configuring LoRA Adaptors...")
     model = FastLanguageModel.get_peft_model(
         model,
-        r = 32, # Higher rank for vocabulary learning
+        r = 16, # Reduced from 32 to save memory
         target_modules = [
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj",
+            "q_proj", "v_proj",  # Reduced targets to save memory
+            "gate_proj", "up_proj",
             "embed_tokens", "lm_head", # CRITICAL: Train the embeddings!
         ],
-        lora_alpha = 64,
+        lora_alpha = 32,  # Reduced from 64
         lora_dropout = 0, # Unsloth optimized
         bias = "none",    # Unsloth optimized
         use_gradient_checkpointing = "unsloth",
