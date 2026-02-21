@@ -9,6 +9,7 @@ Hardware: Kaggle T4 GPU (16GB VRAM)
 
 # Handle Kaggle-specific dependency issues (unsloth_zoo and datasets versioning)
 try:
+    import pyarrow_hotfix 
     import datasets
     # Unsloth has known recursion issues with datasets >= 3.0.0
     if int(datasets.__version__.split('.')[0]) >= 3:
@@ -18,9 +19,14 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     import subprocess
     import sys
     print("🛠️ Fixing environment (downgrading datasets + installing Unsloth)...")
-    # We pin datasets to 2.16.0 which is stable with Unsloth
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "unsloth", "unsloth_zoo", "datasets==2.16.0", "xformers", "trl", "peft", "accelerate", "bitsandbytes"])
-    # Force a reload of the process or at least metadata (though fresh run is better)
+    # We pin datasets to 2.16.0. pyarrow-hotfix is required for this version but missing in Kaggle 3.12
+    # We also add sentencepiece/protobuf for tokenizer compatibility
+    dependencies = [
+        "unsloth", "unsloth_zoo", "datasets==2.16.0", "pyarrow-hotfix",
+        "xformers", "trl", "peft", "accelerate", "bitsandbytes",
+        "sentencepiece", "protobuf"
+    ]
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps"] + dependencies)
     print("✅ Installation complete. Please restart the kernel if you see metadata errors.")
     from unsloth import FastLanguageModel
 
