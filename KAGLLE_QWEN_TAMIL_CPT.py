@@ -80,12 +80,16 @@ def load_and_resize():
     import glob
     from transformers import PreTrainedTokenizerFast
     
-    # Robustly find the tokenizer file even if it has (1) in the name
+    # Robustly find the tokenizer file (look for the largest json file that isn't a config)
     tokenizer_files = glob.glob("/kaggle/working/Tamiluku-LLM/tokenizer/tokenizer*.json")
-    if not tokenizer_files:
+    # Filter out config files
+    val_files = [f for f in tokenizer_files if "config" not in f.lower()]
+    
+    if not val_files:
         raise FileNotFoundError("Could not find any tokenizer.json in /kaggle/working/Tamiluku-LLM/tokenizer/")
     
-    tokenizer_file = tokenizer_files[0]
+    # Pick the largest one to be safe (tokenizer.json is usually MBs, config is bytes)
+    tokenizer_file = max(val_files, key=os.path.getsize)
     print(f"Using tokenizer file: {tokenizer_file}")
     
     # Use PreTrainedTokenizerFast to bypass AutoConfig check
