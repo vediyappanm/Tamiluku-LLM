@@ -20,10 +20,10 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     import sys
     print("🛠️ Fixing environment (downgrading datasets + installing Unsloth)...")
     # We pin datasets to 2.16.0. pyarrow-hotfix is required for this version but missing in Kaggle 3.12
-    # We pin peft to 0.12.0 because newer versions remove 'ensure_weight_tying' which Unsloth expects
+    # We pin peft to 0.4.0 because newer versions remove 'ensure_weight_tying' which Unsloth expects
     dependencies = [
         "unsloth", "unsloth_zoo", "datasets==2.16.0", "pyarrow-hotfix",
-        "peft==0.12.0", "trl==0.8.6", "xformers", "accelerate", "bitsandbytes",
+        "peft==0.4.0", "trl==0.8.6", "xformers", "accelerate", "bitsandbytes",
         "sentencepiece", "protobuf", "typing-extensions"
     ]
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-deps", "--upgrade"] + dependencies)
