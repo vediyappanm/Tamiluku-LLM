@@ -107,7 +107,7 @@ def get_corpus_path():
 
 CORPUS_PATH = get_corpus_path()
 
-max_seq_length = 512 # Reduced from 2048 to save memory for P100
+max_seq_length = 256 # Heavily reduced to fit in T4/P100 VRAM
 dtype = None # None for auto detection
 load_in_4bit = True # Use 4-bit quantization to save memory
 
@@ -212,13 +212,13 @@ def train():
         dataset_num_proc = 2,
         args = TrainingArguments(
             per_device_train_batch_size = 1,
-            gradient_accumulation_steps = 8,
-            warmup_steps = 100,
-            max_steps = 1000, # Start with 1000 for Kaggle
+            gradient_accumulation_steps = 16,
+            warmup_steps = 50,
+            max_steps = 500, # Reduced for memory constraints
             learning_rate = 2e-4,
             fp16 = not torch.cuda.is_bf16_supported(),
             bf16 = torch.cuda.is_bf16_supported(),
-            logging_steps = 10,
+            logging_steps = 20,
             optim = "adamw_8bit",
             weight_decay = 0.01,
             lr_scheduler_type = "cosine",
